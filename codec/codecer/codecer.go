@@ -1,4 +1,5 @@
-// Package codecer is the interface definition for a Human Readable Binary Codec
+// Package codecer is the interface definition for a Human Readable Binary
+// Transcription Codec
 //
 // Interface definitions should be placed in separate packages to
 // implementations so there is no risk of a circular dependency, which is not

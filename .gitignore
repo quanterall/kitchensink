@@ -13,3 +13,8 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+/.idea/.gitignore
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/transcribe.iml
+/.idea/vcs.xml
