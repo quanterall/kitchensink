@@ -8,12 +8,12 @@
 package bech32
 
 import (
-	. "github.com/cybriq/transcribe/codec"
+	"github.com/cybriq/transcribe/codec"
 )
 
 // Spec is the collection of elements derived from the codec type definition
 // that creates the concrete implementation of a 'generic' functionality.
-var Spec = Codec{
+var Spec = codec.Codec{
 	Name:    "Bech32",
 	HRP:     "cybriq",
 	Charset: "qpzry9x8gf2tvdw0s3jn54khce6mua7l",
