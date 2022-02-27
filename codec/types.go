@@ -1,11 +1,17 @@
 package codec
 
+import (
+	"github.com/cybriq/transcribe/codec/codecer"
+)
+
 // Codec is the collection of elements that creates a Human Readable Binary
 // Codec
 //
 // This is an example of the use of a structure definition to encapsulate and
 // logically connect together all of the elements of an implementation, while
-// also permitting this to be used by external code without further dependencies
+// also permitting this to be used by external code without further
+// dependencies, either through this type, or via the interface defined further
+// down.
 type Codec struct {
 	// Name is the human readable name given to this encoder
 	Name string
@@ -34,16 +40,38 @@ type Codec struct {
 	Check func(input string) (valid bool)
 }
 
-// Encode implements the Codecer.Encoder by calling the provided function, and allows
-// the concrete Codec type to always satisfy the interface, while allowing it to
-// be implemented entirely differently
+// The following implementations are here to ensure this type implements the
+// interface. In this tutorial/example we are creating a kind of generic
+// implementation through the use of closures loaded into a struct.
+//
+// Normally a developer would use either one, or the other, a struct with
+// closures, OR an interface with arbitrary variable with implementations for
+// the created type.
+//
+// In order to illustrate both interfaces and the use of closures with a struct
+// in this way we combine the two things by invoking the closures in a
+// predefined pair of methods that satisfy the interface.
+//
+// In fact, there is no real reason why this design could not be standard idiom,
+// since satisfies most of the requirements of idiom for both interfaces
+// (minimal) and hot-reloadable interfaces (allowing creation of registerable
+// compile time plugins such as used in database drivers with structs, and the
+// end user can then either use interfaces or the provided struct, and both
+// options are open.
+
+// This ensures the interface is satisfied for codecer.Codecer
+var _ codecer.Codecer = &Codec{}
+
+// Encode implements the codecer.Codecer.Encode by calling the provided
+// function, and allows the concrete Codec type to always satisfy the interface,
+// while allowing it to be implemented entirely differently.
 func (c Codec) Encode(input []byte) (output string) {
 	return c.Encoder(input)
 }
 
-// Decode implements the Codecer.Decoder by calling the provided function, and allows
-// the concrete Codec type to always satisfy the interface, while allowing it to
-// be implemented entirely differently
+// Decode implements the codecer.Codecer.Decode by calling the provided
+// function, and allows the concrete Codec type to always satisfy the interface,
+// while allowing it to be implemented entirely differently.
 func (c Codec) Decode(input string) (valid bool, output []byte) {
 	return c.Decoder(input)
 }
