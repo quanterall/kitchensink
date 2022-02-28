@@ -1,7 +1,7 @@
 package transcribe
 
 import (
-	"github.com/cybriq/transcribe/codec/codecer"
+	"github.com/quanterall/kitchensink/codecer"
 )
 
 // Codec is the collection of elements that creates a Human Readable Binary
