@@ -1,19 +1,11 @@
-# transcribe
+# kitchensink
 
-## Human Readable Binary Encoding Framework and Tutorial
+## Teaching Golang via building a Human Readable Binary Encoding Framework
 
 In this tutorial we will walk you through the creation from scratch of a human
 readable encoding system, and to make it more interesting, give the option of
-varying the details of the scheme produced.
-
-The idea here is to make a tutorial that lets you go a lot deeper into the task
-while giving a simple base to understand encoding bytes in forms that humans can
-transcribe (theoretically)
-
-Further, rather than just yielding a simple, concrete implementation, in the
-design of this library it is written to show that one can write an extensible
-library with very little extra work compared to the pure quick and dirty
-implementation, if one understands a few simple principles.
+varying the details of the scheme produced, how to turn a library into a 
+microservice, including simple concurrency
 
 This tutorial demonstrates the use of almost every possible and important
 feature of Go. A "toy" implementation of a gRPC/protobuf microservice is added
