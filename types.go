@@ -1,4 +1,4 @@
-package codec
+package transcribe
 
 import (
 	"github.com/cybriq/transcribe/codec/codecer"

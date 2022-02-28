@@ -9,7 +9,7 @@ microservice, including simple concurrency
 
 This tutorial demonstrates the use of almost every possible and important
 feature of Go. A "toy" implementation of a gRPC/protobuf microservice is added
-in order to illustrate almost everything.
+in order to illustrate almost everything else.
 
 In order to demonstrate synchronisation primitives, waitgroups, atomics and
 mutexes, the service will keep track of the number of invocations, print this

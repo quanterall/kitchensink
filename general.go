@@ -1,10 +1,10 @@
-package codec
+package transcribe
 
 import (
-	. "github.com/cybriq/transcribe/codec/codecer"
+	"github.com/quanterall/kitchensink/codecer"
 )
 
-func NewCodec(cdc *Codec) Codecer {
+func NewCodec(cdc *Codec) codecer.Codecer {
 	// Make sure the provided codec has all the parts that are used in the
 	// interface
 	if cdc.Encoder == nil ||
