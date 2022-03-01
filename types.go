@@ -17,7 +17,8 @@ import (
 // tutorial that return values given in type specifications like this helps the
 // users of the library understand what the return values actually are.
 // Otherwise, the programmer is forced to read the whole function just to spot
-// the names and, even worse, comments explaining what the values are.
+// the names and, even worse, comments explaining what the values are, which are
+// often neglected during debugging, and turn into lies!
 type Codec struct {
 
 	// Name is the human readable name given to this encoder
@@ -25,15 +26,23 @@ type Codec struct {
 
 	// HRP is the Human Readable Prefix to be appended in front of the encoding
 	// to disambiguate it from another encoding or as a network or protocol
-	// identifier
+	// identifier. This can be empty, but more usually this will be used to
+	// disambiguate versus other similarly encoded values, such as used on a
+	// different cryptocurrency network, or between main and test networks.
 	HRP string
 
-	// Charset is the set of characters that the encoder uses.
+	// Charset is the set of characters that the encoder uses. This should match
+	// the output encoder, 32 for using base32, 64 for base64, etc.
 	//
-	// Note that the length of the string also sets the base, so if there is 16,
-	// it is base 16, if there is 32, it is base32, The length is arbitrary and
-	// the numeric format encoder in the Go standard library can be used for
-	// literally set of symbols of any length.
+	// For arbitrary bases, see the following function in the standard library:
+	// https://cs.opensource.google/go/go/+/refs/tags/go1.17.7:src/strconv/itoa.go;l=25
+	// This function can render up to base36, but by default uses 0-9a-z in its
+	// representation, which would either need to be string substituted for
+	// non-performance-critical uses or the function above forked to provide a
+	// direct encoding to the intended characters used for the encoding, using
+	// this charset string as the key. The sequence matters, the position of a
+	// character in this string is the place value for a given symbol starting
+	// from zero.
 	Charset string
 
 	// Encode takes an arbitrary length byte input and returns the output as
@@ -80,14 +89,14 @@ var _ codecer.Codecer = &Codec{}
 // function, and allows the concrete Codec type to always satisfy the interface,
 // while allowing it to be implemented entirely differently.
 //
-// note: short functions like this can be one-liners according to gofmt.
+// Note: short functions like this can be one-liners according to gofmt.
 func (c Codec) Encode(input []byte) string { return c.Encoder(input) }
 
 // Decode implements the codecer.Codecer.Decode by calling the provided
 // function, and allows the concrete Codec type to always satisfy the interface,
 // while allowing it to be implemented entirely differently.
 //
-// note: this also can be a one liner. Since we name the return values in the
+// Note: this also can be a one liner. Since we name the return values in the
 // type definition and interface, omitting them here makes the line short enough
 // to be a one liner.
 func (c Codec) Decode(input string) (bool, []byte) { return c.Decoder(input) }
