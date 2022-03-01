@@ -11,6 +11,20 @@ package codecer
 // Codecer is the externally usable interface which provides a check for
 // complete implementation as well as illustrating the use of interfaces in Go.
 //
+// It is an odd name but the idiom for interfaces is to describe it as a <thing
+// it does>er - so if the interface is for a print function, it could be called
+// Printer, if it finds an average, it could be called Averager, and in this
+// case, the interface encodes and decodes, thus 'codec' and the noun forming
+// suffix -er. Encoder is useless without a Decoder so neither name really makes
+// sense for the interface, and Translator implies linguistic restructuring.
+//
+// It is helpful to those who must work with your code after or with you to give
+// meaningful names, and it is idiomatic in Go programming to make meaningful
+// names, so don't be afraid to spend a little time when writing Go code with a
+// thesaurus and dictionary. *Especially* if english is not your first language.
+// Your colleagues will thank you and the inheritors of your code will be
+// grateful that you spent the time.
+//
 // It may seem somewhat redundant in light of type definition, in the root of
 // the repository, which exposes the exact same Encode and Decode functions, but
 // the purpose of adding this is that this interface can be implemented without
@@ -46,10 +60,14 @@ package codecer
 type Codecer interface {
 
 	// Encode takes an arbitrary length byte input and returns the output as
-	// defined for the codec
+	// defined for the codec.
 	Encode(input []byte) (output string)
 
 	// Decode takes an encoded string and returns if the encoding is valid and
-	// the value passes any check function defined for the type
+	// the value passes any check function defined for the type.
+	//
+	// If the check fails or the input is too short to have a check, false and
+	// nil is returned. This is the contract for this method that
+	// implementations should uphold.
 	Decode(input string) (valid bool, output []byte)
 }

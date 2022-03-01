@@ -41,7 +41,7 @@ type Codec struct {
 	Encoder func(input []byte) (output string)
 
 	// Decode takes an encoded string and returns if the encoding is valid and
-	// the value passes any check function defined for the type
+	// the value passes any check function defined for the type.
 	Decoder func(input string) (valid bool, output []byte)
 
 	// AddCheck is used by Encode to add extra bytes for the checksum to ensure

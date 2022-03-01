@@ -28,6 +28,9 @@ var Codec = makeCodec(
 	"cybriq",
 )
 
+// getCutPoint is made into a function because it is needed several times
+func getCutPoint(length int) int { return length - CheckLen }
+
 // makeCodec generates our custom codec as above, into the exported Codec
 // variable
 //
@@ -38,16 +41,17 @@ func makeCodec(
 	name string,
 	hrp string,
 	charset string,
-) (c *codec.Codec) {
+) (cdc *codec.Codec) {
 
-	c = &codec.Codec{
+	// create the codec.Codec struct and put its pointer in the return variable.
+	cdc = &codec.Codec{
 		Name:    name,
 		Charset: charset,
 		HRP:     hrp,
 	}
 
 	// We need to create the check creation functions first
-	c.MakeCheck = func(input []byte) (output []byte) {
+	cdc.MakeCheck = func(input []byte) (output []byte) {
 
 		// We use the Blake3 256 bit hash because it is nearly as fast as CRC32
 		// but less complicated to use due to its 32 bit integer conversions
@@ -57,10 +61,10 @@ func makeCodec(
 		return checkArray[:CheckLen]
 	}
 
-	// create a base32 encoder from the provided charset.
-	enc := base32.NewEncoding(c.Charset)
+	// create a base32.Encoding from the provided charset.
+	enc := base32.NewEncoding(cdc.Charset)
 
-	c.Encoder = func(input []byte) (output string) {
+	cdc.Encoder = func(input []byte) (output string) {
 
 		// The output is longer than the input, so we create a new buffer
 		outputBytes := make([]byte, len(input)+CheckLen)
@@ -69,14 +73,14 @@ func makeCodec(
 		copy(outputBytes[:len(input)], input)
 
 		// then copy the generated checksum value
-		copy(outputBytes[len(input):], c.MakeCheck(input))
+		copy(outputBytes[len(input):], cdc.MakeCheck(input))
 
 		// Add the encoded output to the end of the human readable part and
 		// return
-		return c.HRP + enc.EncodeToString(outputBytes)
+		return cdc.HRP + enc.EncodeToString(outputBytes)
 	}
 
-	c.Check = func(input []byte) (valid bool) {
+	cdc.Check = func(input []byte) (valid bool) {
 
 		// ensure there is at least 4 bytes in the input to run a check on
 		if len(input) < CheckLen {
@@ -93,7 +97,7 @@ func makeCodec(
 		}
 
 		// find the index to cut the input to find the checksum value.
-		cutPoint := len(input) - CheckLen
+		cutPoint := getCutPoint(len(input))
 
 		// here is an example of a multiple assignment and more use of the
 		// slicing operator.
@@ -109,8 +113,9 @@ func makeCodec(
 		// this short check value, it is a cheap operation on the stack, and an
 		// illustration of the interchangeability of []byte and string, with the
 		// distinction of the availability of a comparison operator for the
-		// string that isn't present for []byte
-		computedChecksum := string(c.MakeCheck(payload))
+		// string that isn't present for []byte, so for such cases this
+		// conversion is a shortcut method to compare byte slices.
+		computedChecksum := string(cdc.MakeCheck(payload))
 
 		// here we assign to the return variable the result of the comparison.
 		// by doing this instead of using an if and returns, the meaning of the
@@ -120,7 +125,7 @@ func makeCodec(
 		if !valid {
 
 			// in general, it is better to check for error before the success
-			// path
+			// path, which in this case means no error to log.
 			log.Printf(
 				"Checksum failed, check value: '%x' calculated checksum: '%x",
 				checksum, computedChecksum,
@@ -135,7 +140,47 @@ func makeCodec(
 		return
 	}
 
+	cdc.Decoder = func(input string) (valid bool, output []byte) {
+
+		// be aware the input string will be copied to create the []byte version
+		n, err := enc.Decode(output, []byte(input))
+		switch {
+		case n < CheckLen:
+
+			log.Println("Input is not long enough to have a check value")
+			// valid is false unless changed to true
+			return
+
+		case err != nil:
+
+			// It is better to log errors at the site of the error, though
+			// without the code location this isn't so useful. A drop-in
+			// replacement for the standard log library will be suggested in
+			// future, as the stdlib version lacks this feature.
+			log.Println(err)
+
+			return
+		}
+
+		//
+		valid = cdc.Check(output)
+
+		// no point in doing any more if the check fails, as per the contract
+		// specified in the interface definition codecer.Codecer
+		if !valid {
+			return
+		}
+
+		// find the index to cut the input to find the checksum value.
+		cutPoint := getCutPoint(len(input))
+
+		// slice off the check to return the valid input bytes.
+		output = output[:cutPoint]
+
+		return
+	}
+
 	// We return the value explicitly to be nice to readers as the function is
 	// not a short and simple one.
-	return c
+	return cdc
 }
