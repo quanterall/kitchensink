@@ -43,7 +43,7 @@ var Codec = makeCodec(
 	"cybriq",
 )
 
-// getCutPoint is made into a function because it is needed several times
+// getCutPoint is made into a function because it is needed more than once.
 func getCutPoint(length int) int { return length - CheckLen }
 
 // makeCodec generates our custom codec as above, into the exported Codec
@@ -166,7 +166,9 @@ func makeCodec(
 			log.Printf("Provided string has incorrect human readable part:"+
 				"found '%s' expected '%s'", input[:len(cdc.HRP)], cdc.HRP,
 			)
-			// Valid is false unless changed to true
+			// valid is false unless changed to true as bool variables (always
+			// initialized) default value is false, as false is zero, same as in
+			// the c language.
 			return
 		}
 
@@ -176,7 +178,6 @@ func makeCodec(
 		case n < CheckLen:
 
 			log.Println("Input is not long enough to have a check value")
-			// Valid is false unless changed to true
 			return
 
 		case err != nil:
@@ -186,16 +187,16 @@ func makeCodec(
 			// replacement for the standard log library will be suggested in
 			// future, as the stdlib version lacks this feature.
 			log.Println(err)
-
-			// Valid is false unless changed to true
 			return
 		}
 
-		//
+		// Assigning the result of the check here as if true the resulting
+		// decoded bytes still need to be trimmed of the check value (keeping
+		// things cleanly separated between the check and decode function.
 		valid = cdc.Check(output)
 
-		// no point in doing any more if the check fails, as per the contract
-		// specified in the interface definition codecer.Codecer
+		// There is no point in doing any more if the check fails, as per the
+		// contract specified in the interface definition codecer.Codecer
 		if !valid {
 			return
 		}
