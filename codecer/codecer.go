@@ -23,11 +23,32 @@ package codecer
 //
 // The purpose of interfaces in Go is exactly to eliminate dependencies on any
 // concrete data types so the implementations can be changed without changing
-// the consuming code
+// the consuming code.
+//
+// We are adding this interface in addition to the use of a struct and closure
+// pattern mainly as illustration but also to make sure the student is aware of
+// the implicit implementation recognition, the way to make the compile time
+// check of implementation, and as an exercise for later, the student can create
+// their own implementation by importing this package and use the provided
+// implementation, in parallel with their own, or without it, which they can
+// implement with an entirely separate and different data structure (which will
+// be a struct, most likely, though it can be a slice of interface and be even
+// subordinate to another structured variable like a slice of interface, or a
+// map of interfaces. Then they can drop this interface in place of the built in
+// one and see that they don't have to change the calling code.
+//
+// Note: though it is not officially recognised as idiomatic, it is the opinion
+// of the author of this tutorial that the return values of interface function
+// signatures should be named, as it makes no sense to force the developer to
+// have to read through the implementation that *idiomatically* should accompany
+// an interface, as by idiom, interface should be avoided unless there is more
+// than one implementation.
 type Codecer interface {
+
 	// Encode takes an arbitrary length byte input and returns the output as
 	// defined for the codec
 	Encode(input []byte) (output string)
+
 	// Decode takes an encoded string and returns if the encoding is valid and
 	// the value passes any check function defined for the type
 	Decode(input string) (valid bool, output []byte)
