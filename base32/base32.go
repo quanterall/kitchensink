@@ -22,6 +22,11 @@ import (
 // CheckLen is the number of bytes used for the checksum
 const CheckLen = 4
 
+// charset is the set of characters used in the data section of bech32 strings.
+// Note that this is ordered, such that for a given charset[i], i is the binary
+// value of the character.
+const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
 // Codec provides the encoder/decoder implementation created by makeCodec.
 //
 // This variable is sometimes called a "Singleton" in other languages, and in Go
@@ -54,14 +59,14 @@ func getCutPoint(length int) int { return length - CheckLen }
 // can be used for the immediate mode GUI library Gio.
 func makeCodec(
 	name string,
+	cs string,
 	hrp string,
-	charset string,
 ) (cdc *codec.Codec) {
 
 	// Create the codec.Codec struct and put its pointer in the return variable.
 	cdc = &codec.Codec{
 		Name:    name,
-		Charset: charset,
+		Charset: cs,
 		HRP:     hrp,
 	}
 
