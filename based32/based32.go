@@ -1,4 +1,4 @@
-// Package base32 provides a simplified variant of the standard
+// Package based32 provides a simplified variant of the standard
 // Bech32 human readable binary codec
 //
 // This codec simplifies the padding algorithm compared to the Bech32 standard
@@ -9,7 +9,7 @@
 // base32, which may or may not result in the same thing (we are teaching Go
 // here, not cryptocurrency, and the extra rules used by the Bech32 standard
 // complicate this tutorial unnecessarily - and, Go Uber Alles :)
-package base32
+package based32
 
 import (
 	"encoding/base32"
@@ -18,9 +18,6 @@ import (
 	"lukechampine.com/blake3"
 	"strings"
 )
-
-// CheckLen is the number of bytes used for the checksum
-const CheckLen = 4
 
 // charset is the set of characters used in the data section of bech32 strings.
 // Note that this is ordered, such that for a given charset[i], i is the binary
@@ -44,12 +41,52 @@ const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 // carefully before using these or init().
 var Codec = makeCodec(
 	"Base32Check",
-	"qpzry9x8gf2tvdw0s3jn54khce6mua7l",
-	"cybriq",
+	charset,
+	"Q",
 )
 
+func getCheckLen(length int) (checkLen int) {
+
+	// In order to provide a minimum of 1 byte of check to the output, while
+	// avoiding the encoder adding padding characters (default is '=') the
+	// length of the encoded bytes must be rounded to the nearest multiple of 5,
+	// adding 5 if it is already a multiple of 5 (5 bytes is 40 bits which
+	// encodes as 8 base32 characters).
+	//
+	// The first byte of the encoded data contains the check length, as this
+	// formula varies depending on the length of the data, so it needs to be
+	// encoded into the format in the beginning as it can't go at the end. So
+	// the check length is one byte less than this formula indicates.
+	//
+	// This is a significant divergence from the methods used for these encoders
+	// because in this tutorial we are not only aiming to produce human readable
+	// transcription codes for just transaction hashes (usually 256bit/32 byte)
+	// and addresses (usually 160bit/20byte) but a general formula that could
+	// encode any binary data length, but presumably it would be likely no more
+	// than 512 bits of data for a double length hash, since such a code would
+	// take at least a couple of minutes to correctly transcribe.
+	//
+	// Though a Go programmer may never do a lot of this kind of algorithm
+	// design, it is here especially for those who are inclined towards this
+	// kind of low level encoding, which is part of any data encoding for wire,
+	// storage, for graphic and audio encoding formats, and things like writing
+	// GUIs.
+	lengthMod := length % 5
+
+	switch {
+	case lengthMod == 0:
+		checkLen = 4
+	default:
+		checkLen = lengthMod - 1
+	}
+
+	return
+}
+
 // getCutPoint is made into a function because it is needed more than once.
-func getCutPoint(length int) int { return length - CheckLen }
+func getCutPoint(length, checkLen int) int {
+	return length - checkLen - 1
+}
 
 // makeCodec generates our custom codec as above, into the exported Codec
 // variable
@@ -73,12 +110,14 @@ func makeCodec(
 	// We need to create the check creation functions first
 	cdc.MakeCheck = func(input []byte) (output []byte) {
 
+		checkLen := getCheckLen(len(input))
+
 		// We use the Blake3 256 bit hash because it is nearly as fast as CRC32
 		// but less complicated to use due to its 32 bit integer conversions
 		checkArray := blake3.Sum256(input)
 
-		// This slices the first 4 bytes and copies them into a slice of 4 bytes
-		return checkArray[:CheckLen]
+		// This truncates the blake3 hash to the prescribed check length
+		return checkArray[:checkLen]
 	}
 
 	// Create a base32.Encoding from the provided charset.
@@ -86,14 +125,19 @@ func makeCodec(
 
 	cdc.Encoder = func(input []byte) (output string) {
 
+		CheckLen := getCheckLen(len(input))
+
 		// The output is longer than the input, so we create a new buffer.
-		outputBytes := make([]byte, len(input)+CheckLen)
+		outputBytes := make([]byte, len(input)+CheckLen+1)
+
+		// Add the check length byte to the front
+		outputBytes[0] = byte(CheckLen)
 
 		// Then copy the input bytes for beginning segment.
-		copy(outputBytes[:len(input)], input)
+		copy(outputBytes[1:len(input)+1], input)
 
 		// Then copy the check to the end of the input.
-		copy(outputBytes[len(input):], cdc.MakeCheck(input))
+		copy(outputBytes[len(input)+1:], cdc.MakeCheck(input))
 
 		// Prefix the output with the Human Readable Part and append the
 		// encoded string version of the provided bytes.
@@ -102,8 +146,10 @@ func makeCodec(
 
 	cdc.Check = func(input []byte) (valid bool) {
 
+		checkLen := int(input[0])
+
 		// ensure there is at least 4 bytes in the input to run a check on
-		if len(input) < CheckLen {
+		if len(input) < checkLen {
 
 			// In general, Println is nicer to use, but makes ugly default
 			// formatting of values added in the log print, for which case
@@ -118,7 +164,7 @@ func makeCodec(
 
 		// Find the index to cut the input to find the checksum value. We need
 		// this same value twice so it must be made into a variable.
-		cutPoint := getCutPoint(len(input))
+		cutPoint := getCutPoint(len(input), checkLen)
 
 		// Here is an example of a multiple assignment and more use of the
 		// slicing operator.
@@ -163,6 +209,8 @@ func makeCodec(
 
 	cdc.Decoder = func(input string) (valid bool, output []byte) {
 
+		checkLen := int(input[0])
+
 		// other than for human identification, the HRP is also a validity
 		// check, so if the string prefix is wrong, the entire value is wrong
 		// and won't decode as it is expected.
@@ -180,7 +228,7 @@ func makeCodec(
 		// Be aware the input string will be copied to create the []byte version
 		n, err := enc.Decode(output, []byte(input))
 		switch {
-		case n < CheckLen:
+		case n < checkLen:
 
 			log.Println("Input is not long enough to have a check value")
 			return
@@ -207,7 +255,7 @@ func makeCodec(
 		}
 
 		// Slice off the check to return the valid input bytes.
-		output = output[:getCutPoint(len(input))]
+		output = output[:getCutPoint(len(input), checkLen)]
 
 		// If we got to here, the decode was successful.
 		return

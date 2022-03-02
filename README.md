@@ -1,11 +1,9 @@
 # kitchensink
 
-## Teaching Golang via building a Human Readable Binary Encoding Framework
+## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
 In this tutorial we will walk you through the creation from scratch of a human
-readable encoding system, and to make it more interesting, give the option of
-varying the details of the scheme produced, how to turn a library into a 
-microservice, including simple concurrency
+readable binary transcription encoder/decoder.
 
 This tutorial demonstrates the use of almost every possible and important
 feature of Go. A "toy" implementation of a gRPC/protobuf microservice is added
@@ -14,18 +12,17 @@ in order to illustrate almost everything else.
 In order to demonstrate synchronisation primitives, waitgroups, atomics and
 mutexes, the service will keep track of the number of invocations, print this
 count in log updates, and track the count using a concurrent safe atomic
-variable and show the variant using a mutex instead, and run an arbitrary 
-number of concurrent worker threads that will start up and stop using 
-waitgroups.
+variable and show the variant using a mutex instead, and run an arbitrary number
+of concurrent worker threads that will start up and stop using waitgroups.
 
-The final result is this library itself, and each step will be elaborated in 
-clear detail. Many tutorials leave out important things, and to ensure this 
-does not happen, each stage's parts will be also found in the [steps](.
-/steps) folder at the root of the repository.
+The final result is this library itself, and each step will be elaborated in
+clear detail. Many tutorials leave out important things, and to ensure this does
+not happen, each stage's parts will be also found in the [steps](. /steps)
+folder at the root of the repository.
 
 ## Step By Step:
 
-here will be the step by step process of building the library with a logical 
-sequence that builds from the basis to the specific parts for each in the 
-order that is needed both for understanding and for the constraints of 
-syntax, grammar and build system design...
+here will be the step by step process of building the library with a logical
+sequence that builds from the basis to the specific parts for each in the order
+that is needed both for understanding and for the constraints of syntax, grammar
+and build system design...
