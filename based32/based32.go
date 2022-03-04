@@ -92,8 +92,9 @@ func getCutPoint(length, checkLen int) int {
 // variable
 //
 // Here we demonstrate the use of closures. In this case, it is an
-// initialization, but it can also be used in dynamic generation code such as
-// can be used for the immediate mode GUI library Gio.
+// initialization, but it can also be used in dynamic generation code, or to use
+// the 'builder' pattern to construct larger algorithms out of small modular
+// parts.
 func makeCodec(
 	name string,
 	cs string,
@@ -108,9 +109,7 @@ func makeCodec(
 	}
 
 	// We need to create the check creation functions first
-	cdc.MakeCheck = func(input []byte) (output []byte) {
-
-		checkLen := getCheckLen(len(input))
+	cdc.MakeCheck = func(input []byte, checkLen int) (output []byte) {
 
 		// We use the Blake3 256 bit hash because it is nearly as fast as CRC32
 		// but less complicated to use due to its 32 bit integer conversions
@@ -125,19 +124,21 @@ func makeCodec(
 
 	cdc.Encoder = func(input []byte) (output string) {
 
-		CheckLen := getCheckLen(len(input))
+		// The check length depends on the modulus of the length of the data is
+		// order to avoid padding.
+		checkLen := getCheckLen(len(input))
 
 		// The output is longer than the input, so we create a new buffer.
-		outputBytes := make([]byte, len(input)+CheckLen+1)
+		outputBytes := make([]byte, len(input)+checkLen+1)
 
 		// Add the check length byte to the front
-		outputBytes[0] = byte(CheckLen)
+		outputBytes[0] = byte(checkLen)
 
 		// Then copy the input bytes for beginning segment.
 		copy(outputBytes[1:len(input)+1], input)
 
 		// Then copy the check to the end of the input.
-		copy(outputBytes[len(input)+1:], cdc.MakeCheck(input))
+		copy(outputBytes[len(input)+1:], cdc.MakeCheck(input, checkLen))
 
 		// Prefix the output with the Human Readable Part and append the
 		// encoded string version of the provided bytes.
@@ -146,6 +147,8 @@ func makeCodec(
 
 	cdc.Check = func(input []byte) (valid bool) {
 
+		// The check length is encoded into the first byte in order to ensure
+		// the data is cut correctly to perform the integrity check.
 		checkLen := int(input[0])
 
 		// ensure there is at least 4 bytes in the input to run a check on
@@ -182,7 +185,7 @@ func makeCodec(
 		// distinction of the availability of a comparison operator for the
 		// string that isn't present for []byte, so for such cases this
 		// conversion is a shortcut method to compare byte slices.
-		computedChecksum := string(cdc.MakeCheck(payload))
+		computedChecksum := string(cdc.MakeCheck(payload, checkLen))
 
 		// Here we assign to the return variable the result of the comparison.
 		// by doing this instead of using an if and returns, the meaning of the
@@ -209,8 +212,6 @@ func makeCodec(
 
 	cdc.Decoder = func(input string) (valid bool, output []byte) {
 
-		checkLen := int(input[0])
-
 		// other than for human identification, the HRP is also a validity
 		// check, so if the string prefix is wrong, the entire value is wrong
 		// and won't decode as it is expected.
@@ -225,10 +226,17 @@ func makeCodec(
 			return
 		}
 
+		// Cut the HRP off the beginning to get the content
+		input = input[len(cdc.HRP):]
+
 		// Be aware the input string will be copied to create the []byte version
 		n, err := enc.Decode(output, []byte(input))
+
+		// the first byte signifies the length of the check at the end
+		checkLen := int(output[0])
+
 		switch {
-		case n < checkLen:
+		case n < checkLen+1:
 
 			log.Println("Input is not long enough to have a check value")
 			return
@@ -254,8 +262,9 @@ func makeCodec(
 			return
 		}
 
-		// Slice off the check to return the valid input bytes.
-		output = output[:getCutPoint(len(input), checkLen)]
+		// Slice off the check length prefix, and the check bytes to return the
+		// valid input bytes.
+		output = output[1:getCutPoint(len(input), checkLen)]
 
 		// If we got to here, the decode was successful.
 		return

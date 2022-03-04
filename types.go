@@ -56,7 +56,7 @@ type Codec struct {
 	// AddCheck is used by Encode to add extra bytes for the checksum to ensure
 	// correct input so user does not send to a wrong address by mistake, for
 	// example.
-	MakeCheck func(input []byte) (output []byte)
+	MakeCheck func(input []byte, checkLen int) (output []byte)
 
 	// Check returns whether the check is valid
 	Check func(input []byte) (valid bool)
