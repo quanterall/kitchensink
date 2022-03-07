@@ -14,7 +14,6 @@ package based32
 import (
 	"encoding/base32"
 	codec "github.com/quanterall/kitchensink"
-	"log"
 	"lukechampine.com/blake3"
 	"strings"
 )
@@ -271,10 +270,6 @@ func makeCodec(
 
 		case err != nil:
 
-			// It is better to log errors at the site of the error, though
-			// without the code location this isn't so useful. A drop-in
-			// replacement for the standard log library will be suggested in
-			// future, as the stdlib version lacks this feature.
 			log.Println(err)
 			return
 		}
