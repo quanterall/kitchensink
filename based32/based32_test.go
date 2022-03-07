@@ -98,7 +98,7 @@ func TestCodec(t *testing.T) {
 		encoded += "\t\"" + Codec.Encode(hashedSeeds[i][:len(hashedSeeds[i])-i%5]) + "\",\n"
 	}
 	encoded += "}\n"
-	t.Log(encoded)
+	// t.Log(encoded)
 
 	encodedStr := []string{
 		"QNTRLfalgen75ph72a585lqv32hgd8d3qd6950vvth89huhuvgrd8wt7ftet",
@@ -143,11 +143,7 @@ func TestCodec(t *testing.T) {
 
 	for i := range encodedStr {
 
-		t.Log("q" + encodedStr[i][len(Codec.HRP):])
-		tstB := make([]byte, 35)
-		Codec.Enc.Decode(tstB, []byte("q"+encodedStr[i][len(Codec.HRP):]))
-		valid, decBytes := Codec.Decode(Codec.HRP + "q" + encodedStr[i][len(Codec.HRP):])
-		valid, decBytes = Codec.Decode(encodedStr[i])
+		valid, decBytes := Codec.Decode(encodedStr[i])
 
 		// Trim the expected hex encoded bytes according to the formula applied
 		// to the based32 encoding.

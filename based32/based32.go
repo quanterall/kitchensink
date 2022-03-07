@@ -251,6 +251,24 @@ func makeCodec(
 		// zeroed 5 bytes with a 'q' character.
 		input = "q" + input[len(cdc.HRP):]
 
+		// The length of the base32 string refers to 5 bytes per slice index
+		// position, so the correct size of the output bytes, which are 8 bytes
+		// per slice index position, is found with the following simple integer
+		// math calculation.
+		//
+		// This allocation needs to be made first as the base32 Decode function
+		// does not do this allocation automatically and it would be wasteful to
+		// not compute it precisely, when the calculation is so simple.
+		//
+		// If this allocation is omitted, the decoder will panic due to bounds
+		// check error. A nil slice is equivalent to a zero length slice and
+		// gives a bounds check error, but in fact, the slice has no data at
+		// all. Yes, the panic message is lies:
+		//
+		// panic: runtime error: index out of range [4] with length 0
+		//
+		// If this assignment isn't made, by default, output is nil, not
+		// []byte{} so this panic message is deceptive.
 		output = make([]byte, len(input)*8/5)
 
 		// Be aware the input string will be copied to create the []byte
