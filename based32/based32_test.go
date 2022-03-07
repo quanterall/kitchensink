@@ -14,31 +14,41 @@ const (
 )
 
 func TestCodec(t *testing.T) {
-	// generate 10 pseudorandom 64 bit values
+
+	// Generate 10 pseudorandom 64 bit values. We do this here rather than
+	// pre-generating this separately as ultimately it is the same thing, the
+	// same seed produces the same series of pseudorandom values, and the hashes
+	// of these values are deterministic.
 	rand.Seed(seed)
 	seeds := make([]uint64, numKeys)
 	for i := range seeds {
+
 		seeds[i] = rand.Uint64()
 	}
 
-	// convert to bytes
+	// Convert the uint64 values to 8 byte long slices for the hash function.
 	seedBytes := make([][]byte, numKeys)
 	for i := range seedBytes {
+
 		seedBytes[i] = make([]byte, 8)
 		binary.LittleEndian.PutUint64(seedBytes[i], seeds[i])
 	}
 
-	// generate hashes from the seeds
+	// Generate hashes from the seeds
 	hashedSeeds := make([][]byte, numKeys)
+
+	// Uncomment lines relating to this variable to regenerate expected data
+	// that will log to console during test run.
 	// generated := "\nexpected := []string{\n"
+
 	for i := range hashedSeeds {
+
 		hashed := blake3.Sum256(seedBytes[i])
 		hashedSeeds[i] = hashed[:]
 
-		// // this is printed by the test so it can be copied into the variable
-		// // below if the seed is changed
 		// generated += fmt.Sprintf("\t\"%x\",\n", hashedSeeds[i])
 	}
+
 	// generated += "}\n"
 	// t.Log(generated)
 
@@ -78,26 +88,31 @@ func TestCodec(t *testing.T) {
 	}
 
 	for i := range hashedSeeds {
-		if expected[i] != hex.
-			EncodeToString(hashedSeeds[i]) {
+
+		if expected[i] != hex.EncodeToString(hashedSeeds[i]) {
+
 			t.Log("failed", i, "expected", expected[1], "found", hashedSeeds)
 			t.FailNow()
 		}
 	}
 
-	encoded := "\nencodedStr := []string{\n"
-
-	// Convert hashes to our base32 encoding format
-	for i := range hashedSeeds {
-
-		// Note that we are slicing off a number of bytes at the end according
-		// to the sequence number to get different check byte lengths from a
-		// uniform original data. As such, this will be accounted for in the
-		// check by truncating the same amount in the check (times two, for the
-		// hex encoding of the string).
-		encoded += "\t\"" + Codec.Encode(hashedSeeds[i][:len(hashedSeeds[i])-i%5]) + "\",\n"
-	}
-	encoded += "}\n"
+	// Uncomment to regenerate expected data that will log to console during
+	// test run.
+	//
+	// encoded := "\nencodedStr := []string{\n"
+	//
+	// // Convert hashes to our base32 encoding format
+	// for i := range hashedSeeds {
+	//
+	// 	// Note that we are slicing off a number of bytes at the end according
+	// 	// to the sequence number to get different check byte lengths from a
+	// 	// uniform original data. As such, this will be accounted for in the
+	// 	// check by truncating the same amount in the check (times two, for the
+	// 	// hex encoding of the string).
+	// 	encoded += "\t\"" + Codec.Encode(hashedSeeds[i][:len(hashedSeeds[i])-i%5]) + "\",\n"
+	// }
+	//
+	// encoded += "}\n"
 	// t.Log(encoded)
 
 	encodedStr := []string{
@@ -135,8 +150,6 @@ func TestCodec(t *testing.T) {
 		"QNTRLvpp2hzcneda388gq63ncxzplc0p2ut3ygnsr4g4ycav6qj5yz9g9lv8",
 	}
 
-	_ = encodedStr
-
 	// Next, decode the encodedStr above, which should be the output of the
 	// original generated seeds, with the index mod 5 truncations performed on
 	// each as was done to generate them.
@@ -147,14 +160,16 @@ func TestCodec(t *testing.T) {
 
 		// Trim the expected hex encoded bytes according to the formula applied
 		// to the based32 encoding.
-		expect := expected[i][:2*(i%5)]
-		expectedBytes, err := hex.DecodeString(expect)
+		expectedBytes, err := hex.DecodeString(expected[i][:2*(i%5)])
 		if err != nil {
+
 			t.Log(err)
 			t.FailNow()
 
 		}
+
 		if !valid {
+
 			t.Log("checksum failed on", i,
 				"expected", expectedBytes,
 				"found", hex.EncodeToString(decBytes),

@@ -88,6 +88,7 @@ func getCheckLen(length int) (checkLen int) {
 
 // getCutPoint is made into a function because it is needed more than once.
 func getCutPoint(length, checkLen int) int {
+
 	return length - checkLen - 1
 }
 
@@ -126,8 +127,6 @@ func makeCodec(
 	// Create a base32.Encoding from the provided charset.
 	enc := base32.NewEncoding(cdc.Charset)
 
-	cdc.Enc = enc
-
 	cdc.Encoder = func(input []byte) (output string) {
 
 		// The check length depends on the modulus of the length of the data is
@@ -162,9 +161,17 @@ func makeCodec(
 	cdc.Check = func(input []byte) (valid bool) {
 
 		// We must do this check or the next statement will cause a bounds check
-		// panic.
-		if len(input) < 1 {
+		// panic. Note that zero length and nil slices are different, but have
+		// the same effect in this case, so both must be checked.
+		switch {
+		case len(input) < 1:
+
 			log.Println("Input of zero length is invalid")
+			return
+
+		case input == nil:
+
+			log.Println("Input of nil slice is invalid")
 			return
 		}
 
@@ -199,7 +206,7 @@ func makeCodec(
 		// checksum to the one attached to the received data with checksum
 		// present.
 		//
-		// Note: the casting to string above and here. This makes a copy to the
+		// Note: The casting to string above and here. This makes a copy to the
 		// immutable string, which is not optimal for large byte slices, but for
 		// this short check value, it is a cheap operation on the stack, and an
 		// illustration of the interchangeability of []byte and string, with the
@@ -233,7 +240,7 @@ func makeCodec(
 
 	cdc.Decoder = func(input string) (valid bool, output []byte) {
 
-		// other than for human identification, the HRP is also a validity
+		// Other than for human identification, the HRP is also a validity
 		// check, so if the string prefix is wrong, the entire value is wrong
 		// and won't decode as it is expected.
 		if !strings.HasPrefix(input, cdc.HRP) {
@@ -241,6 +248,7 @@ func makeCodec(
 			log.Printf("Provided string has incorrect human readable part:"+
 				"found '%s' expected '%s'", input[:len(cdc.HRP)], cdc.HRP,
 			)
+
 			// valid is false unless changed to true as bool variables (always
 			// initialized) default value is false, as false is zero, same as in
 			// the c language.
@@ -265,7 +273,7 @@ func makeCodec(
 		// gives a bounds check error, but in fact, the slice has no data at
 		// all. Yes, the panic message is lies:
 		//
-		// panic: runtime error: index out of range [4] with length 0
+		//   panic: runtime error: index out of range [4] with length 0
 		//
 		// If this assignment isn't made, by default, output is nil, not
 		// []byte{} so this panic message is deceptive.
@@ -276,20 +284,19 @@ func makeCodec(
 		// 5 most significant bits, we must re-add the zero at the front (q)
 		// before feeding it to the decoder.
 		n, err := enc.Decode(output, []byte(input))
+		if err != nil {
 
-		// the first byte signifies the length of the check at the end
+			log.Println(err)
+			return
+		}
+
+		// The first byte signifies the length of the check at the end
 		checkLen := int(output[0])
-
-		switch {
-		case n < checkLen+1:
+		if n < checkLen+1 {
 
 			log.Println("Input is not long enough to have a check value")
 			return
 
-		case err != nil:
-
-			log.Println(err)
-			return
 		}
 
 		// Assigning the result of the check here as if true the resulting

@@ -1,7 +1,6 @@
 package transcribe
 
 import (
-	"encoding/base32"
 	"github.com/quanterall/kitchensink/codecer"
 )
 
@@ -61,11 +60,6 @@ type Codec struct {
 
 	// Check returns whether the check is valid
 	Check func(input []byte) (valid bool)
-
-	// Enc exposes the internal base32 encoder. This will not be present in the
-	// final product because this structure is supposed to be agnostic to
-	// implementation details
-	Enc *base32.Encoding
 }
 
 // The following implementations are here to ensure this type implements the
