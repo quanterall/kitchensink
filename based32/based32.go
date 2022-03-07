@@ -42,7 +42,7 @@ const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 var Codec = makeCodec(
 	"Base32Check",
 	charset,
-	"Q",
+	"QNTRL",
 )
 
 func getCheckLen(length int) (checkLen int) {
@@ -71,16 +71,20 @@ func getCheckLen(length int) (checkLen int) {
 	// kind of low level encoding, which is part of any data encoding for wire,
 	// storage, for graphic and audio encoding formats, and things like writing
 	// GUIs.
-	lengthMod := length % 5
+	//
+	// The following formula ensures that there is at least 1 check byte, up to
+	// 4
+	//
+	// we add two to the length before modulus, as there must be 1 byte for
+	// check length and 1 byte of check
+	lengthMod := (2 + length) % 5
 
-	switch {
-	case lengthMod == 0:
-		checkLen = 4
-	default:
-		checkLen = lengthMod - 1
-	}
+	// The modulus is subtracted from 5 to produce the complement required to
+	// make the correct number of bytes of total data, plus 1 to account for the
+	// minimum length of 1.
+	checkLen = 5 - lengthMod + 1
 
-	return
+	return checkLen
 }
 
 // getCutPoint is made into a function because it is needed more than once.
@@ -112,7 +116,8 @@ func makeCodec(
 	cdc.MakeCheck = func(input []byte, checkLen int) (output []byte) {
 
 		// We use the Blake3 256 bit hash because it is nearly as fast as CRC32
-		// but less complicated to use due to its 32 bit integer conversions
+		// but less complicated to use due to the 32 bit integer conversions to
+		// bytes required to use the CRC32 algorithm.
 		checkArray := blake3.Sum256(input)
 
 		// This truncates the blake3 hash to the prescribed check length
@@ -121,6 +126,8 @@ func makeCodec(
 
 	// Create a base32.Encoding from the provided charset.
 	enc := base32.NewEncoding(cdc.Charset)
+
+	cdc.Enc = enc
 
 	cdc.Encoder = func(input []byte) (output string) {
 
@@ -140,19 +147,34 @@ func makeCodec(
 		// Then copy the check to the end of the input.
 		copy(outputBytes[len(input)+1:], cdc.MakeCheck(input, checkLen))
 
+		// Create the encoding for the output.
+		outputString := enc.EncodeToString(outputBytes)
+
+		// We can omit the first character of the encoding because the length
+		// prefix never uses the first 5 bits of the first byte, and add it back
+		// for the decoder later.
+		trimmedString := outputString[1:]
+
 		// Prefix the output with the Human Readable Part and append the
 		// encoded string version of the provided bytes.
-		return cdc.HRP + enc.EncodeToString(outputBytes)
+		return cdc.HRP + trimmedString
 	}
 
 	cdc.Check = func(input []byte) (valid bool) {
+
+		// We must do this check or the next statement will cause a bounds check
+		// panic.
+		if len(input) < 1 {
+			log.Println("Input of zero length is invalid")
+			return
+		}
 
 		// The check length is encoded into the first byte in order to ensure
 		// the data is cut correctly to perform the integrity check.
 		checkLen := int(input[0])
 
-		// ensure there is at least 4 bytes in the input to run a check on
-		if len(input) < checkLen {
+		// Ensure there is at least 4 bytes in the input to run a check on
+		if len(input) < checkLen+1 {
 
 			// In general, Println is nicer to use, but makes ugly default
 			// formatting of values added in the log print, for which case
@@ -171,7 +193,7 @@ func makeCodec(
 
 		// Here is an example of a multiple assignment and more use of the
 		// slicing operator.
-		payload, checksum := input[:cutPoint], string(input[cutPoint:])
+		payload, checksum := input[1:cutPoint], string(input[cutPoint:])
 
 		// A checksum is checked in all cases by taking the data received, and
 		// applying the checksum generation function, and then comparing the
@@ -227,9 +249,12 @@ func makeCodec(
 		}
 
 		// Cut the HRP off the beginning to get the content
-		input = input[len(cdc.HRP):]
+		input = "q" + input[len(cdc.HRP):]
 
-		// Be aware the input string will be copied to create the []byte version
+		// Be aware the input string will be copied to create the []byte
+		// version. Also, because the input bytes are always zero for the first
+		// 5 most significant bits, we must re-add the zero at the front (q)
+		// before feeding it to the decoder.
 		n, err := enc.Decode(output, []byte(input))
 
 		// the first byte signifies the length of the check at the end

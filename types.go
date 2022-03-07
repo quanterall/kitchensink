@@ -1,11 +1,12 @@
 package transcribe
 
 import (
+	"encoding/base32"
 	"github.com/quanterall/kitchensink/codecer"
 )
 
 // Codec is the collection of elements that creates a Human Readable Binary
-// Codec
+// Transcription Codec
 //
 // This is an example of the use of a structure definition to encapsulate and
 // logically connect together all of the elements of an implementation, while
@@ -60,6 +61,11 @@ type Codec struct {
 
 	// Check returns whether the check is valid
 	Check func(input []byte) (valid bool)
+
+	// Enc exposes the internal base32 encoder. This will not be present in the
+	// final product because this structure is supposed to be agnostic to
+	// implementation details
+	Enc *base32.Encoding
 }
 
 // The following implementations are here to ensure this type implements the
