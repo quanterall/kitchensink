@@ -144,7 +144,7 @@ func TestCodec(t *testing.T) {
 	for i := range encodedStr {
 
 		t.Log("q" + encodedStr[i][len(Codec.HRP):])
-		tstB := make([]byte, 32)
+		tstB := make([]byte, 35)
 		Codec.Enc.Decode(tstB, []byte("q"+encodedStr[i][len(Codec.HRP):]))
 		valid, decBytes := Codec.Decode(Codec.HRP + "q" + encodedStr[i][len(Codec.HRP):])
 		valid, decBytes = Codec.Decode(encodedStr[i])

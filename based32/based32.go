@@ -248,8 +248,11 @@ func makeCodec(
 			return
 		}
 
-		// Cut the HRP off the beginning to get the content
+		// Cut the HRP off the beginning to get the content, add the initial
+		// zeroed 5 bytes with a 'q' character.
 		input = "q" + input[len(cdc.HRP):]
+
+		output = make([]byte, len(input)*8/5)
 
 		// Be aware the input string will be copied to create the []byte
 		// version. Also, because the input bytes are always zero for the first
