@@ -40,9 +40,9 @@ type Codec struct {
 	// representation, which would either need to be string substituted for
 	// non-performance-critical uses or the function above forked to provide a
 	// direct encoding to the intended characters used for the encoding, using
-	// this charset string as the key. The sequence matters, the position of a
-	// character in this string is the place value for a given symbol starting
-	// from zero.
+	// this charset string as the key. The sequence matters, each character
+	// represents the cipher for a given value to be found at a given place in
+	// the encoded number.
 	Charset string
 
 	// Encode takes an arbitrary length byte input and returns the output as
