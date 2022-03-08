@@ -25,17 +25,19 @@ centralising the changes and then running a generator to update the linkages.
 This is not the network based RPC service itself, but the implementation back
 end that receives messages and processes the calls. It can be used internally in
 an application to provide services internally, or, as we demonstrate in the rest
-of this tutorial/project, is the processing component that is run by a
-microservice gRPC/Protobuf based HTTP(S) Remote Procedure Call (RPC).
+of this tutorial/project, as the processing component that is run by a
+microservice gRPC/Protobuf based HTTP(S) Remote Procedure Call (RPC) server.
 
 You will notice that the API type is entirely composed of interface types. This
 is because the concrete implementation will be filled out with wrapper functions
 that assert the concrete types and all of this in-between is invisible to the
-calling code. When the interface is simple, it can be ok to simply assert the
-types in results manually, but with a generator, this can all be completely
-automated, and after any hardened generics language user sees what this means
-for maintaining, and the lack of compilation time cost in resolving the generic
-types, the reason why Go 1 does not have generics will become abundantly clear.
+calling code.
+
+When the interface is simple, it can be ok to simply assert the types in results
+manually, but with a generator, this can all be completely automated, and after
+any hardened generics language user sees what this means for maintaining, and
+the lack of compilation time cost in resolving the generic types, the reason why
+Go 1 does not have generics will become abundantly clear.
 
 Generics shift a lot of heavy lifting for covering everything to the corner
 cases, whereas in practice, as in this example, you see that the scope that is
@@ -44,3 +46,18 @@ total waste of programmer's time, as well as an unnecessary cost in paying
 programmers to do like this:
 
 ![xkcd #303 compiling](https://imgs.xkcd.com/comics/compiling.png)
+
+Such resources are better spent on legitimately recreational, non-work,
+non-coding things like beanbags, gym equipment and table tennis tables, where
+programmers can relieve the mental strain of their work properly when needed,
+not according to the limitations of the language.
+
+Rust's Cargo build system does reduce a lot of the repetition of compilation,
+but it still does not eliminate the problem of the time cost in compilation 
+that, no different to Go's build system, increases with the amount of 
+dependent code affected by changes - with Go, it will recompile a lot of 
+things if, say, a logger, is changed, due to the number of callers to it, 
+and if it is a generic using language, all of those dependencies have to be 
+reprocessed. Whereas, in Go, you just run the generators, and off you go. No 
+forced pauses waiting for endless machine intelligence processing over and 
+over again.
