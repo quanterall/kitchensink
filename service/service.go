@@ -1,70 +1,44 @@
 package b32svc
 
-import (
-	"time"
-)
+type Service struct {
+	ServiceDefinition
+	incoming chan interface{}
+	quit     chan struct{}
+}
 
-// BufferSize defines the buffer size created for call channels
-var BufferSize = 8
+type Handler struct {
+	Chan interface{}
+}
 
-// The following types define the parameters and results returned from the
-// ServiceHandlers
-type (
-	// None means no parameters or return value it is not checked so it can be nil
-	None      struct{}
-	EncodeCmd struct {
-		// Bytes is the slice of bytes to be encoded. Note that slices are
-		// reference types so there is no need to make this a pointer to prevent
-		// value copy.
-		Bytes []byte
-	}
-	EncodeRes struct {
-		// Res is the result string. It is a pointer to a string because
-		// otherwise the value will be copied, and it will always be more data
-		// than the pointer (8 bytes).
-		Res *string
-		Err error
-	}
-	DecodeCmd struct {
-		String *string
-	}
-	DecodeRes struct {
-		Res []byte
-		Err error
-	}
-)
+type Handlers map[string]Handler
 
-// ServiceHandlers provides the concurrent implementation of the codec service
-// via the 'send command with return channel' model - the calling code sends a
-// command with the result channel inside, and when the handler has performed
-// the task it returns on the return channel.
-var ServiceHandlers = Handlers{
+type ServiceDefinition struct {
+	Name string
+	Handlers
+}
 
-	"Encode": {
-		Fn: func(
-			svc *Service,
-			cmd interface{},
-			timeout time.Duration,
-			cancel chan struct{},
-		) (res interface{}, err error) {
+func New(svc ServiceDefinition) *Service {
 
-			return
-		},
-		Call:   make(chan API, BufferSize),
-		Result: func() API { return API{Ch: make(chan EncodeRes)} },
-	},
+	return &Service{ServiceDefinition: svc}
+}
 
-	"Decode": {
-		Fn: func(
-			svc *Service,
-			cmd interface{},
-			timeout time.Duration,
-			cancel chan struct{},
-		) (res interface{}, err error) {
-
-			return
-		},
-		Call:   make(chan API, BufferSize),
-		Result: func() API { return API{Ch: make(chan DecodeRes)} },
-	},
+func (s *Service) Run() func() {
+	s.quit = make(chan struct{})
+	go func() {
+	out:
+		for {
+			select {
+			case msg := <-s.incoming:
+				switch msg := msg.(type) {
+				case int:
+					_ = msg
+				default:
+				}
+			case <-s.quit:
+				break out
+			}
+		}
+		log.Println(s.ServiceDefinition.Name, "service runner is now shut down")
+	}()
+	return func() { close(s.quit) }
 }
