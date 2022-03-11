@@ -7,7 +7,9 @@ type Service struct {
 }
 
 type Handler struct {
-	Chan interface{}
+	Chan   interface{}
+	Params interface{}
+	Result interface{}
 }
 
 type Handlers map[string]Handler

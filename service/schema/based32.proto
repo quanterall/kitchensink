@@ -1,0 +1,34 @@
+syntax = "proto3";
+package signer;
+option go_package = "github.com/quanterall/service";
+
+service Transcriber {
+  rpc Encode(EncodeRequest) returns (EncodeResponse);
+  rpc Decode(DecodeRequest) returns (DecodeResponse);
+}
+enum Error {
+  ZERO_LENGTH =0;
+  CHECK_FAILED = 1;
+}
+
+message EncodeRequest {
+  bytes Data = 1;
+}
+
+message EncodeResponse {
+  oneof Encoded {
+    string EncodedString = 1;
+    Error Error = 2;
+  }
+}
+
+message DecodeRequest{
+  string EncodedString = 1;
+}
+
+message DecodeResponse {
+  oneof Decoded {
+    bytes Data = 1;
+    Error Error = 2;
+  }
+}
