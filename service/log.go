@@ -1,4 +1,4 @@
-package b32svc
+package service
 
 import (
 	logg "log"

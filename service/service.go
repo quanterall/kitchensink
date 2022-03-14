@@ -1,46 +1,6 @@
-package b32svc
+package service
 
-type Service struct {
-	ServiceDefinition
-	incoming chan interface{}
-	quit     chan struct{}
-}
-
-type Handler struct {
-	Chan   interface{}
-	Params interface{}
-	Result interface{}
-}
-
-type Handlers map[string]Handler
-
-type ServiceDefinition struct {
-	Name string
-	Handlers
-}
-
-func New(svc ServiceDefinition) *Service {
-
-	return &Service{ServiceDefinition: svc}
-}
-
-func (s *Service) Run() func() {
-	s.quit = make(chan struct{})
-	go func() {
-	out:
-		for {
-			select {
-			case msg := <-s.incoming:
-				switch msg := msg.(type) {
-				case int:
-					_ = msg
-				default:
-				}
-			case <-s.quit:
-				break out
-			}
-		}
-		log.Println(s.ServiceDefinition.Name, "service runner is now shut down")
-	}()
-	return func() { close(s.quit) }
-}
+// The following line generates the protocol, it assumes that `protoc` is in the
+// path. This directive is run when `go generate` is run in the current package,
+// or if a wildcard was used ( go generate ./... ).
+//go:generate protoc -I=. --go_out=. ./api/based32.proto
