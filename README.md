@@ -17,7 +17,7 @@ of concurrent worker threads that will start up and stop using waitgroups.
 
 The final result is this library itself, and each step will be elaborated in
 clear detail. Many tutorials leave out important things, and to ensure this does
-not happen, each stage's parts will be also found in the [steps](. /steps)
+not happen, each stage's parts will be also found in the [steps](./steps)
 folder at the root of the repository.
 
 ## Prerequisites
@@ -47,13 +47,6 @@ time of writing), "copy link location" on the relevant version (linux x86-64)
     wget https://go.dev/dl/go1.17.8.linux-amd64.tar.gz
     tar xvf go1.17.8.linux-amd64.tar.gz
 
-This also creates a proper place where `go install` will put produced 
-binaries, which is recommended for avoiding cluttering up repositories you 
-are working on with binaries and potentially accidentally adding them to the 
-repository, which can be very problematic if you are working on a BIG 
-application (Go apps are generally under 60mb in size but this is still a 
-lot in a source code repository).
-
 Using your favourite editor, open up `~/.bashrc` - or just 
 
     nano ~/.bashrc
@@ -67,17 +60,29 @@ and put the following lines at the end
 
 save and close, and `ctrl-d` to kill the terminal session, and start a new one.
 
+This also creates a proper place where `go install` will put produced
+binaries, which is recommended for avoiding cluttering up repositories you
+are working on with binaries and potentially accidentally adding them to the
+repository, which can be very problematic if you are working on a BIG
+application (Go apps are generally under 60mb in size but this is still a
+lot in a source code repository).
+
 ### Install Protobuf Compiler
+
+In order to build the project you will need the protobuf compiler installed. 
+This generates Go code from a protobuf specification for a service, creating 
+all the necessary handlers to call and to handle calls to implement the API 
+of our transcription codec.
 
     sudo apt install -y protobuf-compiler
     protoc --version  # Ensure compiler version is 3+
 
 ### Notes
 
-Note that we also will be demonstrating the use of `make` as a build tool. 
+~~Note that we also will be demonstrating the use of `make` as a build tool. 
 This is not strictly necessary when developing Go applications, but it is 
 very commonly used for this purpose and can simplify a lot of things. This 
-entire section could be automated into a makefile script, for example.
+entire section could be automated into a makefile script, for example.~~
 
 ## Step By Step:
 
