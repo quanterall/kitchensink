@@ -1,6 +1,6 @@
 syntax = "proto3";
 package signer;
-option go_package = "api/";
+option go_package = "github.com/quanterall/kitchensink/service/protos";
 
 service Transcriber {
   rpc Encode(EncodeRequest) returns (EncodeResponse);

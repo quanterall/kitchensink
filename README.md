@@ -9,6 +9,12 @@ This tutorial demonstrates the use of almost every possible and important
 feature of Go. A "toy" implementation of a gRPC/protobuf microservice is added
 in order to illustrate almost everything else.
 
+Note that we choose gRPC because it is widely used for microservices and by 
+using it, a project is empowered to decouple the binary part of the API both 
+from the implementation language and from the possibility of developers 
+inadvertently creating a distributed monolith, which is very difficult to 
+change.
+
 In order to demonstrate synchronisation primitives, waitgroups, atomics and
 mutexes, the service will keep track of the number of invocations, print this
 count in log updates, and track the count using a concurrent safe atomic
@@ -76,6 +82,18 @@ of our transcription codec.
 
     sudo apt install -y protobuf-compiler
     protoc --version  # Ensure compiler version is 3+
+
+### Install gRPC plugins for Go
+
+This didn't used to be as easy as it is now. This produces the gRPC 
+generated code which eliminates the need to construct an RPC framework, all 
+the work is done for you, you can now just connect it to a network transport 
+and voila. This installs the plugins, which is another reason why the 
+`GOBIN` must be set and added to `PATH`. Otherwise, the two tools that are 
+installed in the following commands will not be accessible.
+
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
 
 ### Notes
 
