@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	protos "github.com/quanterall/kitchensink/proto"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"io"
 	"net"
@@ -20,10 +19,9 @@ var (
 // initialized channel, and will panic the Start function immediately.
 type b32 struct {
 	protos.UnimplementedTranscriberServer
-	stop                       chan struct{}
-	encCallCount, decCallCount *atomic.Uint32
-	svr                        *grpc.Server
-	transcriber                *Transcriber
+	stop        chan struct{}
+	svr         *grpc.Server
+	transcriber *Transcriber
 }
 
 // Encode is our implementation of the encode API call for the incoming stream
@@ -51,9 +49,11 @@ out:
 		in, err := stream.Recv()
 		switch {
 		case err == io.EOF:
+			
 			// The client has broken the connection, so we can quit
 			break out
 		case err != nil:
+
 			// Any error is terminal here, so return it to the caller after
 			// logging it
 			log.Println(err)
@@ -98,14 +98,12 @@ out:
 }
 
 // New creates a new service handler
-func New() (b *b32) {
+func New(workers int) (b *b32) {
 	stop := make(chan struct{})
 	b = &b32{
-		stop:         stop,
-		encCallCount: atomic.NewUint32(0),
-		decCallCount: atomic.NewUint32(0),
-		svr:          grpc.NewServer(),
-		transcriber:  NewWorkerPool(stop),
+		stop:        stop,
+		svr:         grpc.NewServer(),
+		transcriber: NewWorkerPool(workers, stop),
 	}
 	return
 }
@@ -128,10 +126,10 @@ func (b *b32) Start() (stop func()) {
 		if err := b.svr.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
-		log.Printf("server at %v now shut down, "+
-			"processed %v encodes and %v encodes",
-			lis.Addr(), b.encCallCount.Load(), b.decCallCount.Load(),
+		log.Printf("server at %v now shut down",
+			lis.Addr(),
 		)
+
 	}()
 
 	go func() {
