@@ -3,8 +3,8 @@ package signer;
 option go_package = "github.com/quanterall/kitchensink/service/protos";
 
 service Transcriber {
-  rpc Encode(EncodeRequest) returns (EncodeResponse);
-  rpc Decode(DecodeRequest) returns (DecodeResponse);
+  rpc Encode(stream EncodeRequest) returns (stream EncodeResponse);
+  rpc Decode(stream DecodeRequest) returns (stream DecodeResponse);
 }
 enum Error {
   ZERO_LENGTH =0;

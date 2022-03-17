@@ -18,8 +18,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TranscriberClient interface {
-	Encode(ctx context.Context, in *EncodeRequest, opts ...grpc.CallOption) (*EncodeResponse, error)
-	Decode(ctx context.Context, in *DecodeRequest, opts ...grpc.CallOption) (*DecodeResponse, error)
+	Encode(ctx context.Context, opts ...grpc.CallOption) (Transcriber_EncodeClient, error)
+	Decode(ctx context.Context, opts ...grpc.CallOption) (Transcriber_DecodeClient, error)
 }
 
 type transcriberClient struct {
@@ -30,30 +30,74 @@ func NewTranscriberClient(cc grpc.ClientConnInterface) TranscriberClient {
 	return &transcriberClient{cc}
 }
 
-func (c *transcriberClient) Encode(ctx context.Context, in *EncodeRequest, opts ...grpc.CallOption) (*EncodeResponse, error) {
-	out := new(EncodeResponse)
-	err := c.cc.Invoke(ctx, "/signer.Transcriber/Encode", in, out, opts...)
+func (c *transcriberClient) Encode(ctx context.Context, opts ...grpc.CallOption) (Transcriber_EncodeClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Transcriber_ServiceDesc.Streams[0], "/signer.Transcriber/Encode", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &transcriberEncodeClient{stream}
+	return x, nil
 }
 
-func (c *transcriberClient) Decode(ctx context.Context, in *DecodeRequest, opts ...grpc.CallOption) (*DecodeResponse, error) {
-	out := new(DecodeResponse)
-	err := c.cc.Invoke(ctx, "/signer.Transcriber/Decode", in, out, opts...)
+type Transcriber_EncodeClient interface {
+	Send(*EncodeRequest) error
+	Recv() (*EncodeResponse, error)
+	grpc.ClientStream
+}
+
+type transcriberEncodeClient struct {
+	grpc.ClientStream
+}
+
+func (x *transcriberEncodeClient) Send(m *EncodeRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *transcriberEncodeClient) Recv() (*EncodeResponse, error) {
+	m := new(EncodeResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *transcriberClient) Decode(ctx context.Context, opts ...grpc.CallOption) (Transcriber_DecodeClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Transcriber_ServiceDesc.Streams[1], "/signer.Transcriber/Decode", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &transcriberDecodeClient{stream}
+	return x, nil
+}
+
+type Transcriber_DecodeClient interface {
+	Send(*DecodeRequest) error
+	Recv() (*DecodeResponse, error)
+	grpc.ClientStream
+}
+
+type transcriberDecodeClient struct {
+	grpc.ClientStream
+}
+
+func (x *transcriberDecodeClient) Send(m *DecodeRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *transcriberDecodeClient) Recv() (*DecodeResponse, error) {
+	m := new(DecodeResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // TranscriberServer is the server API for Transcriber service.
 // All implementations must embed UnimplementedTranscriberServer
 // for forward compatibility
 type TranscriberServer interface {
-	Encode(context.Context, *EncodeRequest) (*EncodeResponse, error)
-	Decode(context.Context, *DecodeRequest) (*DecodeResponse, error)
+	Encode(Transcriber_EncodeServer) error
+	Decode(Transcriber_DecodeServer) error
 	mustEmbedUnimplementedTranscriberServer()
 }
 
@@ -61,11 +105,11 @@ type TranscriberServer interface {
 type UnimplementedTranscriberServer struct {
 }
 
-func (UnimplementedTranscriberServer) Encode(context.Context, *EncodeRequest) (*EncodeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Encode not implemented")
+func (UnimplementedTranscriberServer) Encode(Transcriber_EncodeServer) error {
+	return status.Errorf(codes.Unimplemented, "method Encode not implemented")
 }
-func (UnimplementedTranscriberServer) Decode(context.Context, *DecodeRequest) (*DecodeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Decode not implemented")
+func (UnimplementedTranscriberServer) Decode(Transcriber_DecodeServer) error {
+	return status.Errorf(codes.Unimplemented, "method Decode not implemented")
 }
 func (UnimplementedTranscriberServer) mustEmbedUnimplementedTranscriberServer() {}
 
@@ -80,40 +124,56 @@ func RegisterTranscriberServer(s grpc.ServiceRegistrar, srv TranscriberServer) {
 	s.RegisterService(&Transcriber_ServiceDesc, srv)
 }
 
-func _Transcriber_Encode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EncodeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TranscriberServer).Encode(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/signer.Transcriber/Encode",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TranscriberServer).Encode(ctx, req.(*EncodeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _Transcriber_Encode_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TranscriberServer).Encode(&transcriberEncodeServer{stream})
 }
 
-func _Transcriber_Decode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DecodeRequest)
-	if err := dec(in); err != nil {
+type Transcriber_EncodeServer interface {
+	Send(*EncodeResponse) error
+	Recv() (*EncodeRequest, error)
+	grpc.ServerStream
+}
+
+type transcriberEncodeServer struct {
+	grpc.ServerStream
+}
+
+func (x *transcriberEncodeServer) Send(m *EncodeResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *transcriberEncodeServer) Recv() (*EncodeRequest, error) {
+	m := new(EncodeRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(TranscriberServer).Decode(ctx, in)
+	return m, nil
+}
+
+func _Transcriber_Decode_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TranscriberServer).Decode(&transcriberDecodeServer{stream})
+}
+
+type Transcriber_DecodeServer interface {
+	Send(*DecodeResponse) error
+	Recv() (*DecodeRequest, error)
+	grpc.ServerStream
+}
+
+type transcriberDecodeServer struct {
+	grpc.ServerStream
+}
+
+func (x *transcriberDecodeServer) Send(m *DecodeResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *transcriberDecodeServer) Recv() (*DecodeRequest, error) {
+	m := new(DecodeRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
 	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/signer.Transcriber/Decode",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TranscriberServer).Decode(ctx, req.(*DecodeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 // Transcriber_ServiceDesc is the grpc.ServiceDesc for Transcriber service.
@@ -122,16 +182,20 @@ func _Transcriber_Decode_Handler(srv interface{}, ctx context.Context, dec func(
 var Transcriber_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "signer.Transcriber",
 	HandlerType: (*TranscriberServer)(nil),
-	Methods: []grpc.MethodDesc{
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "Encode",
-			Handler:    _Transcriber_Encode_Handler,
+			StreamName:    "Encode",
+			Handler:       _Transcriber_Encode_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 		{
-			MethodName: "Decode",
-			Handler:    _Transcriber_Decode_Handler,
+			StreamName:    "Decode",
+			Handler:       _Transcriber_Decode_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "proto/based32.proto",
 }
