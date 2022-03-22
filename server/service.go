@@ -49,7 +49,7 @@ out:
 		in, err := stream.Recv()
 		switch {
 		case err == io.EOF:
-			
+
 			// The client has broken the connection, so we can quit
 			break out
 		case err != nil:
@@ -67,6 +67,7 @@ out:
 // Decode is our implementation of the encode API call for the incoming stream
 // of requests.
 func (b *b32) Decode(stream protos.Transcriber_DecodeServer) error {
+
 out:
 	for {
 
@@ -99,12 +100,14 @@ out:
 
 // New creates a new service handler
 func New(workers int) (b *b32) {
+
 	stop := make(chan struct{})
 	b = &b32{
 		stop:        stop,
 		svr:         grpc.NewServer(),
 		transcriber: NewWorkerPool(workers, stop),
 	}
+
 	return
 }
 
@@ -113,6 +116,7 @@ func (b *b32) Start() (stop func()) {
 	// if the calling main function was passed a port specification, this loads
 	// it into the port variable
 	flag.Parse()
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
