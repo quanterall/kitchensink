@@ -113,8 +113,8 @@ func New(workers int) (b *b32) {
 
 func (b *b32) Start() (stop func()) {
 
-	// if the calling main function was passed a port specification, this loads
-	// it into the port variable
+	// If the calling main function was passed a port specification, this loads
+	// it into the port variable.
 	flag.Parse()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
@@ -122,7 +122,7 @@ func (b *b32) Start() (stop func()) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	// This is spawned in a goroutine so we can trigger the shutdown correctly
+	// This is spawned in a goroutine so we can trigger the shutdown correctly.
 	go func() {
 		protos.RegisterTranscriberServer(b.svr, b)
 		log.Printf("server listening at %v", lis.Addr())
@@ -142,7 +142,7 @@ func (b *b32) Start() (stop func()) {
 			select {
 			case <-b.stop:
 
-				// this is the proper way to stop the gRPC server, which will
+				// This is the proper way to stop the gRPC server, which will
 				// end the next goroutine spawned just above correctly.
 				b.svr.GracefulStop()
 				break out
@@ -150,7 +150,7 @@ func (b *b32) Start() (stop func()) {
 		}
 	}()
 
-	// the stop signal is triggered when this function is called, which triggers
+	// The stop signal is triggered when this function is called, which triggers
 	// the graceful stop of the server, and terminates the two goroutines above
 	// cleanly.
 	return func() { close(b.stop) }
