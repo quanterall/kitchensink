@@ -3,10 +3,10 @@ package transcribe
 // The following line generates the protocol, it assumes that `protoc` is in the
 // path. This directive is run when `go generate` is run in the current package,
 // or if a wildcard was used ( go generate ./... ).
-//go:generate protoc -I=. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./proto/based32.proto
+//go:generate protoc -I=. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./pkg/proto/based32.proto
 
 import (
-	"github.com/quanterall/kitchensink/codecer"
+	"github.com/quanterall/kitchensink/pkg/codecer"
 )
 
 // Codec is the collection of elements that creates a Human Readable Binary

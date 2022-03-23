@@ -1,16 +1,11 @@
 package server
 
 import (
-	"flag"
 	"fmt"
-	protos "github.com/quanterall/kitchensink/proto"
+	"github.com/quanterall/kitchensink/pkg/proto"
 	"google.golang.org/grpc"
 	"io"
 	"net"
-)
-
-var (
-	port = flag.Int("port", 50051, "The server port")
 )
 
 // b32 is not exported because if the consuming code uses this struct
@@ -22,6 +17,7 @@ type b32 struct {
 	stop        chan struct{}
 	svr         *grpc.Server
 	transcriber *Transcriber
+	port        int
 }
 
 // Encode is our implementation of the encode API call for the incoming stream
@@ -99,13 +95,14 @@ out:
 }
 
 // New creates a new service handler
-func New(workers int) (b *b32) {
+func New(port, workers int) (b *b32) {
 
 	stop := make(chan struct{})
 	b = &b32{
 		stop:        stop,
 		svr:         grpc.NewServer(),
 		transcriber: NewWorkerPool(workers, stop),
+		port:        port,
 	}
 
 	return
@@ -113,11 +110,8 @@ func New(workers int) (b *b32) {
 
 func (b *b32) Start() (stop func()) {
 
-	// If the calling main function was passed a port specification, this loads
-	// it into the port variable.
-	flag.Parse()
-
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
+	// set up a tcp listener for the gRPC service
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", b.port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}

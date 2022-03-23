@@ -197,5 +197,5 @@ var Transcriber_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "proto/based32.proto",
+	Metadata: "pkg/proto/based32.proto",
 }

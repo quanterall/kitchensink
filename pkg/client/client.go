@@ -1,42 +1,42 @@
 package client
 
 import (
-	"flag"
-	protos "github.com/quanterall/kitchensink/proto"
+	protos2 "github.com/quanterall/kitchensink/pkg/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"log"
 )
 
-var serverAddr = flag.String("addr", "localhost:50051",
-	"The server address in the format of host:port",
-)
+//
+// var serverAddr = flag.String("addr", "localhost:50051",
+// 	"The server address in the format of host:port",
+// )
 
 type Transcribe struct {
 	*grpc.ClientConn
-	protos.TranscriberClient
-	enc protos.Transcriber_EncodeClient
-	dec protos.Transcriber_DecodeClient
+	protos2.TranscriberClient
+	enc protos2.Transcriber_EncodeClient
+	dec protos2.Transcriber_DecodeClient
 	context.Context
 }
 
-func New() (c *Transcribe, disconnect func()) {
+func New(serverAddr string) (c *Transcribe, disconnect func()) {
 
 	// Dial the configured server address
-	conn, err := grpc.Dial(*serverAddr)
+	conn, err := grpc.Dial(serverAddr)
 	if err != nil {
 		log.Fatalf("fail to dial: %v", err)
 	}
 
-	client := protos.NewTranscriberClient(conn)
+	client := protos2.NewTranscriberClient(conn)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	var encode protos.Transcriber_EncodeClient
+	var encode protos2.Transcriber_EncodeClient
 	encode, err = client.Encode(ctx)
 	if err != nil {
 		return nil, func() {}
 	}
-	var decode protos.Transcriber_DecodeClient
+	var decode protos2.Transcriber_DecodeClient
 	decode, err = client.Decode(ctx)
 	if err != nil {
 		return nil, func() {}
@@ -64,8 +64,8 @@ func New() (c *Transcribe, disconnect func()) {
 }
 
 // Encode bytes into human readable transcription code based32.
-func (t *Transcribe) Encode(req *protos.EncodeRequest) (
-	res *protos.EncodeResponse,
+func (t *Transcribe) Encode(req *protos2.EncodeRequest) (
+	res *protos2.EncodeResponse,
 	err error,
 ) {
 	err = t.enc.Send(req)
@@ -74,14 +74,14 @@ func (t *Transcribe) Encode(req *protos.EncodeRequest) (
 	}
 	res, err = t.enc.Recv()
 	if err != nil {
-		return nil, err
+		return
 	}
 	return
 }
 
 // Decode bytes from human readable transcription code based32.
-func (t *Transcribe) Decode(req *protos.DecodeRequest) (
-	res *protos.DecodeResponse,
+func (t *Transcribe) Decode(req *protos2.DecodeRequest) (
+	res *protos2.DecodeResponse,
 	err error,
 ) {
 	err = t.dec.Send(req)

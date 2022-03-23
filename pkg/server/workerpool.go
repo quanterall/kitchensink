@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/quanterall/kitchensink/based32"
-	protos "github.com/quanterall/kitchensink/proto"
+	"github.com/quanterall/kitchensink/pkg/based32"
+	"github.com/quanterall/kitchensink/pkg/proto"
 	"go.uber.org/atomic"
 	"sync"
 )
