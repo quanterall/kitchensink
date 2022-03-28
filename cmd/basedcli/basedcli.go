@@ -8,8 +8,11 @@ import (
 
 const defaultAddr = "localhost:50051"
 
-var serverAddr = flag.String("a", defaultAddr,
-	"The server address for the basedd client to connect to",
+var (
+	serverAddr = flag.String("a", defaultAddr,
+		"The server address for the basedcli to connect to",
+	)
+	hexInput = flag.String("h", "", "hex string to convert to based32 encoding")
 )
 
 func main() {
