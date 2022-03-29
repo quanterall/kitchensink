@@ -55,9 +55,10 @@ out:
 			return err
 		}
 
-		log.Println("received message", in)
+		log.Printf("received message %x", in.Data)
 
 		b.transcriber.encode <- in
+		log.Println("message delivered")
 	}
 	return nil
 }
@@ -118,6 +119,8 @@ func New(addr *net.TCPAddr, workers int) (b *b32) {
 
 func (b *b32) Start() (stop func()) {
 
+	stopService := b.transcriber.Start()
+
 	// Set up a tcp listener for the gRPC service.
 	lis, err := net.ListenTCP("tcp", b.addr)
 	if err != nil {
@@ -146,7 +149,8 @@ func (b *b32) Start() (stop func()) {
 			// If force kill is required, there is a bug in the concurrency and
 			// should be fixed to ensure that all resources are properly
 			// released, and especially in the case of databases or file writing
-			// that the cache is flushed and left in a sane state.
+			// that the cache is flushed and the on disk store is left in a sane
+			// state.
 			close(b.stop)
 		}
 		log.Printf("server at %v now shut down",
@@ -164,6 +168,7 @@ func (b *b32) Start() (stop func()) {
 				// This is the proper way to stop the gRPC server, which will
 				// end the next goroutine spawned just above correctly.
 				b.svr.GracefulStop()
+				stopService()
 				break out
 			}
 		}

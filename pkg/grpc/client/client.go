@@ -4,7 +4,7 @@ import (
 	protos2 "github.com/quanterall/kitchensink/pkg/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"log"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 //
@@ -23,7 +23,9 @@ type Transcribe struct {
 func New(serverAddr string) (c *Transcribe, disconnect func()) {
 
 	// Dial the configured server address
-	conn, err := grpc.Dial(serverAddr)
+	conn, err := grpc.Dial(serverAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
 		log.Fatalf("fail to dial: %v", err)
 	}
