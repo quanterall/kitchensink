@@ -1,23 +1,22 @@
 package server
 
 import (
-	"fmt"
 	"github.com/quanterall/kitchensink/pkg/proto"
 	"google.golang.org/grpc"
 	"io"
 	"net"
 )
 
-// b32 is not exported because if the consuming code uses this struct
-// directly without initializing it correctly, several things will not work
-// correctly, such as the stop function, which depends on there being an
-// initialized channel, and will panic the Start function immediately.
+// b32 is not exported because if the consuming code uses this struct directly
+// without initializing it correctly, several things will not work correctly,
+// such as the stop function, which depends on there being an initialized
+// channel, and will panic the Start function immediately.
 type b32 struct {
 	protos.UnimplementedTranscriberServer
 	stop        chan struct{}
 	svr         *grpc.Server
 	transcriber *Transcriber
-	port        int
+	addr        *net.TCPAddr
 }
 
 // Encode is our implementation of the encode API call for the incoming stream
@@ -72,6 +71,7 @@ out:
 		case <-b.stop:
 			break out
 		default:
+			// When a select statement has a default case it always terminates.
 		}
 
 		// Wait for and load in a newly received message
@@ -85,7 +85,8 @@ out:
 		case err != nil:
 
 			// Any error is terminal here, so return it to the caller after
-			// logging it
+			// logging it, and ending this function terminates the decoder
+			// service.
 			log.Println(err)
 			return err
 		}
@@ -95,14 +96,18 @@ out:
 }
 
 // New creates a new service handler
-func New(port, workers int) (b *b32) {
+func New(addr *net.TCPAddr, workers int) (b *b32) {
 
+	// It would be possible to interlink all of the kill switches in an
+	// application via passing this variable in to the New function, for which
+	// reason in an application, its killswitch has to trigger closing of this
+	// channel via calling the stop function returned by Start, further down.
 	stop := make(chan struct{})
 	b = &b32{
 		stop:        stop,
 		svr:         grpc.NewServer(),
 		transcriber: NewWorkerPool(workers, stop),
-		port:        port,
+		addr:        addr,
 	}
 
 	return
@@ -110,10 +115,10 @@ func New(port, workers int) (b *b32) {
 
 func (b *b32) Start() (stop func()) {
 
-	// set up a tcp listener for the gRPC service
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", b.port))
+	// Set up a tcp listener for the gRPC service.
+	lis, err := net.ListenTCP("tcp", b.addr)
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		log.Fatalf("failed to listen on %v: %v", b.addr, err)
 	}
 
 	// This is spawned in a goroutine so we can trigger the shutdown correctly.
@@ -122,7 +127,24 @@ func (b *b32) Start() (stop func()) {
 		log.Printf("server listening at %v", lis.Addr())
 
 		if err := b.svr.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
+
+			// This is where errors returned from Decode and Encode streams end
+			// up.
+			log.Printf("failed to serve: '%v'", err)
+
+			// By the time this happens the second goroutine is running and it
+			// is always better unless you are sure nothing else is running and
+			// part way starting up, to shut it down properly. Closing this
+			// channel terminates the second goroutine which calls the server to
+			// stop, and then the Start function terminates. In this way we can
+			// be sure that nothing will keep running and the user does not have
+			// to use `kill -9` or ctrl-\ on the terminal to end the process.
+			//
+			// If force kill is required, there is a bug in the concurrency and
+			// should be fixed to ensure that all resources are properly
+			// released, and especially in the case of databases or file writing
+			// that the cache is flushed and left in a sane state.
+			close(b.stop)
 		}
 		log.Printf("server at %v now shut down",
 			lis.Addr(),

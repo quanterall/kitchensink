@@ -10,7 +10,7 @@ const defaultAddr = "localhost:50051"
 
 var (
 	serverAddr = flag.String("a", defaultAddr,
-		"The server address for the basedcli to connect to",
+		"The server address for basedcli to connect to",
 	)
 	hexInput = flag.String("h", "", "hex string to convert to based32 encoding")
 )
