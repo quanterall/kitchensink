@@ -12,7 +12,10 @@ var (
 	serverAddr = flag.String("a", defaultAddr,
 		"The server address for basedcli to connect to",
 	)
-	hexInput = flag.String("h", "", "hex string to convert to based32 encoding")
+	encode = flag.String("e", "", "hex string to convert to based32 encoding")
+	decode = flag.String("d", "",
+		"based32 encoded string to convert back to hex",
+	)
 )
 
 func main() {
@@ -25,4 +28,5 @@ func main() {
 			"run with argument -h to print command line options",
 		)
 	}
+
 }

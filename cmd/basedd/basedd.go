@@ -4,8 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/cybriq/interrupt"
-	"github.com/cybriq/qu"
-	"github.com/quanterall/kitchensink/pkg/server"
+	"github.com/quanterall/kitchensink/pkg/grpc/server"
 	"net"
 	"os"
 )
@@ -17,7 +16,7 @@ var serverAddr = flag.String("a", defaultAddr,
 		"- omit host to bind to all network interfaces",
 )
 
-var killAll = qu.T()
+var killAll = make(chan struct{})
 
 func main() {
 
@@ -42,14 +41,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Println(addr)
-
 	svc := server.New(addr, 8)
 
 	// interrupt is a library that allows the proper handling of OS interrupt
 	// signals to allow a clean shutdown and ensure such things as databases are
 	// properly closed and all pending writes are completed.
 	interrupt.AddHandler(func() {
+
+		// Most of the time the shell spits out a `^C` when the user hits
+		// ctrl-c, the standard interrupt (cancel) key for a terminal. This adds
+		// a newline so our logs don't get indented with an ugly prefix making
+		// them less readable.
+		_, _ = fmt.Fprintln(os.Stderr)
 
 		// In this case, we are just ending the process, after the select block
 		// below falls through when the channel is closed, the execution of the
@@ -69,9 +72,9 @@ func main() {
 		// qu library makes it easier to debug the channels when run control
 		// bugs appear, you can print the information about the state of the
 		// channels that are open and where in the code they are waiting.
-		_, _ = fmt.Fprintln(os.Stderr)
+
 		log.Println("Shutting down basedd microservice")
-		killAll.Q()
+		close(killAll)
 	},
 	)
 
@@ -80,7 +83,7 @@ func main() {
 	stop := svc.Start()
 
 	select {
-	case <-killAll.Wait():
+	case <-killAll:
 
 		// This triggers termination of the service. We separate the stop
 		// controls of this application versus the services embedded inside the

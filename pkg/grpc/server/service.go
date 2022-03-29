@@ -54,6 +54,9 @@ out:
 			log.Println(err)
 			return err
 		}
+
+		log.Println("received message", in)
+
 		b.transcriber.encode <- in
 	}
 	return nil
