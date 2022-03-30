@@ -238,7 +238,7 @@ func makeCodec(
 		return
 	}
 
-	cdc.Decoder = func(input string) (valid bool, output []byte) {
+	cdc.Decoder = func(input string) (decRes codec.DecodeRes) {
 
 		// Other than for human identification, the HRP is also a validity
 		// check, so if the string prefix is wrong, the entire value is wrong
@@ -277,13 +277,13 @@ func makeCodec(
 		//
 		// If this assignment isn't made, by default, output is nil, not
 		// []byte{} so this panic message is deceptive.
-		output = make([]byte, len(input)*8/5)
+		decRes.Data = make([]byte, len(input)*8/5)
 
 		// Be aware the input string will be copied to create the []byte
 		// version. Also, because the input bytes are always zero for the first
 		// 5 most significant bits, we must re-add the zero at the front (q)
 		// before feeding it to the decoder.
-		n, err := enc.Decode(output, []byte(input))
+		n, err := enc.Decode(decRes.Data, []byte(input))
 		if err != nil {
 
 			log.Println(err)
@@ -291,7 +291,7 @@ func makeCodec(
 		}
 
 		// The first byte signifies the length of the check at the end
-		checkLen := int(output[0])
+		checkLen := int(decRes.Data[0])
 		if n < checkLen+1 {
 
 			log.Println("Input is not long enough to have a check value")
@@ -302,17 +302,17 @@ func makeCodec(
 		// Assigning the result of the check here as if true the resulting
 		// decoded bytes still need to be trimmed of the check value (keeping
 		// things cleanly separated between the check and decode function.
-		valid = cdc.Check(output)
+		decRes.Decoded = cdc.Check(decRes.Data)
 
 		// There is no point in doing any more if the check fails, as per the
 		// contract specified in the interface definition codecer.Codecer
-		if !valid {
+		if !decRes.Decoded {
 			return
 		}
 
 		// Slice off the check length prefix, and the check bytes to return the
 		// valid input bytes.
-		output = output[1:getCutPoint(len(input), checkLen)]
+		decRes.Data = decRes.Data[1:getCutPoint(len(input), checkLen)]
 
 		// If we got to here, the decode was successful.
 		return

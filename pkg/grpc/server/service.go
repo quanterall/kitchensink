@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/quanterall/kitchensink/pkg/proto"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"io"
 	"net"
@@ -17,6 +18,8 @@ type b32 struct {
 	svr         *grpc.Server
 	transcriber *Transcriber
 	addr        *net.TCPAddr
+	roundRobin  atomic.Uint32
+	workers     uint32
 }
 
 // Encode is our implementation of the encode API call for the incoming stream
@@ -55,10 +58,26 @@ out:
 			return err
 		}
 
-		log.Printf("received message %x", in.Data)
-
-		b.transcriber.encode <- in
-		log.Println("message delivered")
+		log.Printf("received raw bytes %x", in.Data)
+		worker := b.roundRobin.Load()
+		if worker > b.workers {
+			b.roundRobin.Store(0)
+		} else {
+			b.roundRobin.Inc()
+		}
+		b.transcriber.encode[worker] <- in
+		log.Println("encoding")
+		res := <-b.transcriber.encodeRes[worker]
+		response := &protos.EncodeResponse{
+			Encoded: &protos.EncodeResponse_EncodedString{
+				EncodedString: res,
+			},
+		}
+		err = stream.Send(response)
+		if err != nil {
+			return err
+		}
+		log.Println("raw bytes encoded")
 	}
 	return nil
 }
@@ -67,6 +86,7 @@ out:
 // of requests.
 func (b *b32) Decode(stream protos.Transcriber_DecodeServer) error {
 
+	var decRes *protos.DecodeResponse
 out:
 	for {
 
@@ -94,13 +114,37 @@ out:
 			log.Println(err)
 			return err
 		}
-		b.transcriber.decode <- in
+		log.Printf("received encoded string %x",
+			in.EncodedString,
+		)
+		worker := b.roundRobin.Load()
+		if worker > b.workers {
+			b.roundRobin.Store(0)
+		} else {
+			b.roundRobin.Inc()
+		}
+		b.transcriber.decode[worker] <- in
+		log.Println("decoding")
+		res := <-b.transcriber.decodeRes[worker]
+
+		if res.Decoded {
+			decRes = &protos.DecodeResponse{
+				Decoded: &protos.DecodeResponse_Data{
+					Data: res.Data,
+				},
+			}
+		}
+		err = stream.Send(decRes)
+		if err != nil {
+			return err
+		}
+		log.Println("encoded string decoded")
 	}
 	return nil
 }
 
 // New creates a new service handler
-func New(addr *net.TCPAddr, workers int) (b *b32) {
+func New(addr *net.TCPAddr, workers uint32) (b *b32) {
 
 	// It would be possible to interlink all of the kill switches in an
 	// application via passing this variable in to the New function, for which
@@ -112,7 +156,9 @@ func New(addr *net.TCPAddr, workers int) (b *b32) {
 		svr:         grpc.NewServer(),
 		transcriber: NewWorkerPool(workers, stop),
 		addr:        addr,
+		workers:     workers,
 	}
+	b.roundRobin.Store(0)
 
 	return
 }

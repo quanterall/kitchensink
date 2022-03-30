@@ -9,6 +9,11 @@ import (
 	"github.com/quanterall/kitchensink/pkg/codecer"
 )
 
+type DecodeRes struct {
+	Decoded bool
+	Data    []byte
+}
+
 // Codec is the collection of elements that creates a Human Readable Binary
 // Transcription Codec
 //
@@ -56,7 +61,7 @@ type Codec struct {
 
 	// Decode takes an encoded string and returns if the encoding is valid and
 	// the value passes any check function defined for the type.
-	Decoder func(input string) (valid bool, output []byte)
+	Decoder func(input string) (res DecodeRes)
 
 	// AddCheck is used by Encode to add extra bytes for the checksum to ensure
 	// correct input so user does not send to a wrong address by mistake, for
@@ -104,4 +109,7 @@ func (c Codec) Encode(input []byte) string { return c.Encoder(input) }
 // Note: this also can be a one liner. Since we name the return values in the
 // type definition and interface, omitting them here makes the line short enough
 // to be a one liner.
-func (c Codec) Decode(input string) (bool, []byte) { return c.Decoder(input) }
+func (c Codec) Decode(input string) (bool, []byte) {
+	res := c.Decoder(input)
+	return res.Decoded, res.Data
+}
