@@ -61,12 +61,13 @@ out:
 		log.Printf("received raw bytes %x", in.Data)
 		worker := b.roundRobin.Load()
 		if worker > b.workers {
+			worker = 0
 			b.roundRobin.Store(0)
 		} else {
+			worker++
 			b.roundRobin.Inc()
 		}
 		b.transcriber.encode[worker] <- in
-		log.Println("encoding")
 		res := <-b.transcriber.encodeRes[worker]
 		response := &protos.EncodeResponse{
 			Encoded: &protos.EncodeResponse_EncodedString{
@@ -77,7 +78,6 @@ out:
 		if err != nil {
 			return err
 		}
-		log.Println("raw bytes encoded")
 	}
 	return nil
 }
@@ -114,7 +114,7 @@ out:
 			log.Println(err)
 			return err
 		}
-		log.Printf("received encoded string %x",
+		log.Printf("received encoded string %s",
 			in.EncodedString,
 		)
 		worker := b.roundRobin.Load()
@@ -124,9 +124,7 @@ out:
 			b.roundRobin.Inc()
 		}
 		b.transcriber.decode[worker] <- in
-		log.Println("decoding")
 		res := <-b.transcriber.decodeRes[worker]
-
 		if res.Decoded {
 			decRes = &protos.DecodeResponse{
 				Decoded: &protos.DecodeResponse_Data{
@@ -138,7 +136,6 @@ out:
 		if err != nil {
 			return err
 		}
-		log.Println("encoded string decoded")
 	}
 	return nil
 }

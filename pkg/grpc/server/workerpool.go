@@ -84,15 +84,11 @@ out:
 		select {
 		case msg := <-t.encode[worker]:
 
-			log.Println("encoding")
-
 			t.encCallCount.Inc()
 
 			t.encodeRes[worker] <- based32.Codec.Encode(msg.Data)
 
 		case msg := <-t.decode[worker]:
-
-			log.Println("decoding")
 
 			t.decCallCount.Inc()
 

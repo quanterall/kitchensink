@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"encoding/hex"
 	"github.com/quanterall/kitchensink/pkg/grpc/client"
 	"github.com/quanterall/kitchensink/pkg/grpc/server"
 	protos "github.com/quanterall/kitchensink/pkg/proto"
@@ -20,11 +21,12 @@ func TestGRPC(t *testing.T) {
 
 	cli, disconnect := client.New(defaultAddr)
 
+	test1, _ := hex.DecodeString("deadbeefcafedeadbeefcafe")
 	encRes, err := cli.Encode(&protos.EncodeRequest{
-		Data: make([]byte, 32),
+		Data: test1,
 	},
 	)
-	t.Logf("resp: %v, err: %v", encRes, err)
+	t.Logf("resp: %v, err: %v", encRes.GetEncodedString(), err)
 
 	decRes, err := cli.Decode(&protos.DecodeRequest{
 		EncodedString: encRes.GetEncodedString(),

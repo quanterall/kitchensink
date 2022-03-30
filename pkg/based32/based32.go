@@ -129,6 +129,8 @@ func makeCodec(
 
 	cdc.Encoder = func(input []byte) (output string) {
 
+		log.Printf("input %d %x", len(input), input)
+
 		// The check length depends on the modulus of the length of the data is
 		// order to avoid padding.
 		checkLen := getCheckLen(len(input))
@@ -277,7 +279,7 @@ func makeCodec(
 		//
 		// If this assignment isn't made, by default, output is nil, not
 		// []byte{} so this panic message is deceptive.
-		decRes.Data = make([]byte, len(input)*8/5)
+		decRes.Data = make([]byte, len(input)*5/8)
 
 		// Be aware the input string will be copied to create the []byte
 		// version. Also, because the input bytes are always zero for the first
@@ -312,7 +314,7 @@ func makeCodec(
 
 		// Slice off the check length prefix, and the check bytes to return the
 		// valid input bytes.
-		decRes.Data = decRes.Data[1:getCutPoint(len(input), checkLen)]
+		decRes.Data = decRes.Data[1:getCutPoint(len(decRes.Data)+1, checkLen)]
 
 		// If we got to here, the decode was successful.
 		return
