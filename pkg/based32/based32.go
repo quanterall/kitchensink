@@ -129,8 +129,6 @@ func makeCodec(
 
 	cdc.Encoder = func(input []byte) (output string) {
 
-		log.Printf("input %d %x", len(input), input)
-
 		// The check length depends on the modulus of the length of the data is
 		// order to avoid padding.
 		checkLen := getCheckLen(len(input))

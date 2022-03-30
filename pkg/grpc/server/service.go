@@ -58,7 +58,6 @@ out:
 			return err
 		}
 
-		log.Printf("received raw bytes %x", in.Data)
 		worker := b.roundRobin.Load()
 		if worker > b.workers {
 			worker = 0
@@ -114,9 +113,6 @@ out:
 			log.Println(err)
 			return err
 		}
-		log.Printf("received encoded string %s",
-			in.EncodedString,
-		)
 		worker := b.roundRobin.Load()
 		if worker > b.workers {
 			b.roundRobin.Store(0)

@@ -21,19 +21,24 @@ func TestGRPC(t *testing.T) {
 
 	cli, disconnect := client.New(defaultAddr)
 
-	test1, _ := hex.DecodeString("deadbeefcafedeadbeefcafe")
+	test1, err := hex.DecodeString("deadbeefcafe0080085000deadbeefcafe")
+	if err != nil {
+		t.Fatal(err)
+	}
 	encRes, err := cli.Encode(&protos.EncodeRequest{
 		Data: test1,
 	},
 	)
-	t.Logf("resp: %v, err: %v", encRes.GetEncodedString(), err)
-
 	decRes, err := cli.Decode(&protos.DecodeRequest{
 		EncodedString: encRes.GetEncodedString(),
 	},
 	)
-	t.Logf("resp: %x, err: %v", decRes.GetDecoded(), err)
 
 	disconnect()
 	stopSrvr()
+	if string(test1) != string(decRes.GetData()) {
+		t.Fatalf("failed output equals input test: got %x expected %x",
+			test1, decRes.GetData(),
+		)
+	}
 }
