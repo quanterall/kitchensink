@@ -59,18 +59,19 @@ out:
 		}
 
 		worker := b.roundRobin.Load()
-		if worker > b.workers {
-			worker = 0
-			b.roundRobin.Store(0)
-		} else {
-			worker++
-			b.roundRobin.Inc()
-		}
+		log.Printf("worker %d", worker)
 		b.transcriber.encode[worker] <- in
 		res := <-b.transcriber.encodeRes[worker]
 		err = stream.Send(proto.CreateEncodeResponse(res))
 		if err != nil {
 			return err
+		}
+		if worker >= b.workers {
+			worker = 0
+			b.roundRobin.Store(0)
+		} else {
+			worker++
+			b.roundRobin.Inc()
 		}
 	}
 	return nil
@@ -108,16 +109,19 @@ out:
 			return err
 		}
 		worker := b.roundRobin.Load()
-		if worker > b.workers {
-			b.roundRobin.Store(0)
-		} else {
-			b.roundRobin.Inc()
-		}
+		log.Printf("worker %d", worker)
 		b.transcriber.decode[worker] <- in
 		res := <-b.transcriber.decodeRes[worker]
 		err = stream.Send(proto.CreateDecodeResponse(res))
 		if err != nil {
 			return err
+		}
+		if worker >= b.workers {
+			worker = 0
+			b.roundRobin.Store(0)
+		} else {
+			worker++
+			b.roundRobin.Inc()
 		}
 	}
 	return nil
@@ -136,7 +140,7 @@ func New(addr *net.TCPAddr, workers uint32) (b *b32) {
 		svr:         grpc.NewServer(),
 		transcriber: NewWorkerPool(workers, stop),
 		addr:        addr,
-		workers:     workers,
+		workers:     workers - 1,
 	}
 	b.roundRobin.Store(0)
 
