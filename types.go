@@ -9,9 +9,14 @@ import (
 	"github.com/quanterall/kitchensink/pkg/codecer"
 )
 
+type EncodeRes struct {
+	String string
+	Error  error
+}
+
 type DecodeRes struct {
-	Decoded bool
-	Data    []byte
+	Bytes []byte
+	Error error
 }
 
 // Codec is the collection of elements that creates a Human Readable Binary

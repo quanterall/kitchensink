@@ -13,7 +13,7 @@ import (
 // such as the stop function, which depends on there being an initialized
 // channel, and will panic the Start function immediately.
 type b32 struct {
-	protos.UnimplementedTranscriberServer
+	proto.UnimplementedTranscriberServer
 	stop        chan struct{}
 	svr         *grpc.Server
 	transcriber *Transcriber
@@ -32,7 +32,7 @@ type b32 struct {
 // It is a golden rule of Go, if it's not difficult to maintain, copy and paste,
 // if it is, write a generator, or rage quit and use a generics language and
 // lose your time waiting for compilation instead.
-func (b *b32) Encode(stream protos.Transcriber_EncodeServer) error {
+func (b *b32) Encode(stream proto.Transcriber_EncodeServer) error {
 out:
 	for {
 
@@ -68,12 +68,7 @@ out:
 		}
 		b.transcriber.encode[worker] <- in
 		res := <-b.transcriber.encodeRes[worker]
-		response := &protos.EncodeResponse{
-			Encoded: &protos.EncodeResponse_EncodedString{
-				EncodedString: res,
-			},
-		}
-		err = stream.Send(response)
+		err = stream.Send(proto.CreateEncodeResponse(res))
 		if err != nil {
 			return err
 		}
@@ -83,9 +78,8 @@ out:
 
 // Decode is our implementation of the encode API call for the incoming stream
 // of requests.
-func (b *b32) Decode(stream protos.Transcriber_DecodeServer) error {
+func (b *b32) Decode(stream proto.Transcriber_DecodeServer) error {
 
-	var decRes *protos.DecodeResponse
 out:
 	for {
 
@@ -121,14 +115,7 @@ out:
 		}
 		b.transcriber.decode[worker] <- in
 		res := <-b.transcriber.decodeRes[worker]
-		if res.Decoded {
-			decRes = &protos.DecodeResponse{
-				Decoded: &protos.DecodeResponse_Data{
-					Data: res.Data,
-				},
-			}
-		}
-		err = stream.Send(decRes)
+		err = stream.Send(proto.CreateDecodeResponse(res))
 		if err != nil {
 			return err
 		}
@@ -168,7 +155,7 @@ func (b *b32) Start() (stop func()) {
 
 	// This is spawned in a goroutine so we can trigger the shutdown correctly.
 	go func() {
-		protos.RegisterTranscriberServer(b.svr, b)
+		proto.RegisterTranscriberServer(b.svr, b)
 		log.Printf("server listening at %v", lis.Addr())
 
 		if err := b.svr.Serve(lis); err != nil {

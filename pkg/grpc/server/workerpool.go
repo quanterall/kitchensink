@@ -12,9 +12,9 @@ import (
 // encode and decode requests.
 type Transcriber struct {
 	stop                       chan struct{}
-	encode                     []chan *protos.EncodeRequest
-	decode                     []chan *protos.DecodeRequest
-	encodeRes                  []chan string
+	encode                     []chan *proto.EncodeRequest
+	decode                     []chan *proto.DecodeRequest
+	encodeRes                  []chan codec.EncodeRes
 	decodeRes                  []chan codec.DecodeRes
 	encCallCount, decCallCount *atomic.Uint32
 	workers                    uint32
@@ -29,9 +29,9 @@ func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
 	// Initialize a Transcriber worker pool
 	t := &Transcriber{
 		stop:         stop,
-		encode:       make([]chan *protos.EncodeRequest, workers),
-		decode:       make([]chan *protos.DecodeRequest, workers),
-		encodeRes:    make([]chan string, workers),
+		encode:       make([]chan *proto.EncodeRequest, workers),
+		decode:       make([]chan *proto.DecodeRequest, workers),
+		encodeRes:    make([]chan codec.EncodeRes, workers),
 		decodeRes:    make([]chan codec.DecodeRes, workers),
 		encCallCount: atomic.NewUint32(0),
 		decCallCount: atomic.NewUint32(0),
@@ -41,9 +41,9 @@ func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
 
 	// Create a channel for each worker to send and receive on
 	for i := uint32(0); i < workers; i++ {
-		t.encode[i] = make(chan *protos.EncodeRequest)
-		t.decode[i] = make(chan *protos.DecodeRequest)
-		t.encodeRes[i] = make(chan string)
+		t.encode[i] = make(chan *proto.EncodeRequest)
+		t.decode[i] = make(chan *proto.DecodeRequest)
+		t.encodeRes[i] = make(chan codec.EncodeRes)
 		t.decodeRes[i] = make(chan codec.DecodeRes)
 	}
 
@@ -85,17 +85,20 @@ out:
 		case msg := <-t.encode[worker]:
 
 			t.encCallCount.Inc()
-
-			t.encodeRes[worker] <- based32.Codec.Encode(msg.Data)
+			res, err := based32.Codec.Encode(msg.Data)
+			t.encodeRes[worker] <- codec.EncodeRes{
+				String: res,
+				Error:  err,
+			}
 
 		case msg := <-t.decode[worker]:
 
 			t.decCallCount.Inc()
 
-			decoded, bytes := based32.Codec.Decode(msg.EncodedString)
+			bytes, err := based32.Codec.Decode(msg.EncodedString)
 			t.decodeRes[worker] <- codec.DecodeRes{
-				Decoded: decoded,
-				Data:    bytes,
+				Bytes: bytes,
+				Error: err,
 			}
 
 		case <-t.stop:
