@@ -61,7 +61,7 @@ type Codecer interface {
 
 	// Encode takes an arbitrary length byte input and returns the output as
 	// defined for the codec.
-	Encode(input []byte) (output string)
+	Encode(input []byte) (output string, err error)
 
 	// Decode takes an encoded string and returns if the encoding is valid and
 	// the value passes any check function defined for the type.
@@ -69,5 +69,5 @@ type Codecer interface {
 	// If the check fails or the input is too short to have a check, false and
 	// nil is returned. This is the contract for this method that
 	// implementations should uphold.
-	Decode(input string) (valid bool, output []byte)
+	Decode(input string) (output []byte, err error)
 }

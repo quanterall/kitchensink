@@ -57,11 +57,11 @@ type Codec struct {
 
 	// Encode takes an arbitrary length byte input and returns the output as
 	// defined for the codec
-	Encoder func(input []byte) (output string)
+	Encoder func(input []byte) (output string, err error)
 
 	// Decode takes an encoded string and returns if the encoding is valid and
 	// the value passes any check function defined for the type.
-	Decoder func(input string) (res DecodeRes)
+	Decoder func(input string) (output []byte, err error)
 
 	// AddCheck is used by Encode to add extra bytes for the checksum to ensure
 	// correct input so user does not send to a wrong address by mistake, for
@@ -69,7 +69,7 @@ type Codec struct {
 	MakeCheck func(input []byte, checkLen int) (output []byte)
 
 	// Check returns whether the check is valid
-	Check func(input []byte) (valid bool)
+	Check func(input []byte) (err error)
 }
 
 // The following implementations are here to ensure this type implements the
@@ -100,7 +100,7 @@ var _ codecer.Codecer = &Codec{}
 // while allowing it to be implemented entirely differently.
 //
 // Note: short functions like this can be one-liners according to gofmt.
-func (c Codec) Encode(input []byte) string { return c.Encoder(input) }
+func (c Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
 
 // Decode implements the codecer.Codecer.Decode by calling the provided
 // function, and allows the concrete Codec type to always satisfy the interface,
@@ -109,7 +109,4 @@ func (c Codec) Encode(input []byte) string { return c.Encoder(input) }
 // Note: this also can be a one liner. Since we name the return values in the
 // type definition and interface, omitting them here makes the line short enough
 // to be a one liner.
-func (c Codec) Decode(input string) (bool, []byte) {
-	res := c.Decoder(input)
-	return res.Decoded, res.Data
-}
+func (c Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }

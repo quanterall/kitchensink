@@ -3,6 +3,7 @@ package based32
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"lukechampine.com/blake3"
 	"math/rand"
 	"testing"
@@ -156,26 +157,19 @@ func TestCodec(t *testing.T) {
 
 	for i := range encodedStr {
 
-		valid, decBytes := Codec.Decode(encodedStr[i])
-
-		// Trim the expected hex encoded bytes according to the formula applied
-		// to the based32 encoding.
-		expectedBytes, err := hex.DecodeString(expected[i][:2*(i%5)])
+		res, err := Codec.Decode(encodedStr[i])
 		if err != nil {
-
-			t.Log(err)
-			t.FailNow()
-
+			t.Fatalf("error: '%v'", err)
 		}
-
-		if !valid {
-
-			t.Log("checksum failed on", i,
-				"expected", expectedBytes,
-				"found", hex.EncodeToString(decBytes),
+		elen := len(expected[i])
+		etrimlen := 2 * (i % 5)
+		expectedHex := expected[i][:elen-etrimlen]
+		resHex := fmt.Sprintf("%x", res)
+		if resHex != expectedHex {
+			t.Fatalf("got: '%s' expected: '%s'",
+				resHex,
+				expectedHex,
 			)
-			t.FailNow()
 		}
-
 	}
 }

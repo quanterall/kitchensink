@@ -7,8 +7,11 @@ service Transcriber {
   rpc Decode(stream DecodeRequest) returns (stream DecodeResponse);
 }
 enum Error {
-  ZERO_LENGTH =0;
+  ZERO_LENGTH = 0;
   CHECK_FAILED = 1;
+  NIL_SLICE = 2;
+  CHECK_TOO_SHORT = 3;
+  INCORRECT_HUMAN_READABLE_PART = 4;
 }
 
 message EncodeRequest {
