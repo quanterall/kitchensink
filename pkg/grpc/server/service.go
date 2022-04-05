@@ -59,7 +59,7 @@ out:
 		}
 
 		worker := b.roundRobin.Load()
-		log.Printf("worker %d", worker)
+		// log.Printf("worker %d", worker)
 		b.transcriber.encode[worker] <- in
 		res := <-b.transcriber.encodeRes[worker]
 		err = stream.Send(proto.CreateEncodeResponse(res))
@@ -109,7 +109,7 @@ out:
 			return err
 		}
 		worker := b.roundRobin.Load()
-		log.Printf("worker %d", worker)
+		// log.Printf("worker %d", worker)
 		b.transcriber.decode[worker] <- in
 		res := <-b.transcriber.decodeRes[worker]
 		err = stream.Send(proto.CreateDecodeResponse(res))
