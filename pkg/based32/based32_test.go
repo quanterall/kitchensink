@@ -97,25 +97,6 @@ func TestCodec(t *testing.T) {
 		}
 	}
 
-	// Uncomment to regenerate expected data that will log to console during
-	// test run.
-	//
-	// encoded := "\nencodedStr := []string{\n"
-	//
-	// // Convert hashes to our base32 encoding format
-	// for i := range hashedSeeds {
-	//
-	// 	// Note that we are slicing off a number of bytes at the end according
-	// 	// to the sequence number to get different check byte lengths from a
-	// 	// uniform original data. As such, this will be accounted for in the
-	// 	// check by truncating the same amount in the check (times two, for the
-	// 	// hex encoding of the string).
-	// 	encoded += "\t\"" + Codec.Encode(hashedSeeds[i][:len(hashedSeeds[i])-i%5]) + "\",\n"
-	// }
-	//
-	// encoded += "}\n"
-	// t.Log(encoded)
-
 	encodedStr := []string{
 		"QNTRLfalgen75ph72a585lqv32hgd8d3qd6950vvth89huhuvgrd8wt7ftet",
 		"QNTRLwzvpm30fxlmym6g57xf6pytkvy6qpkmf3uer6lym4ku8ukvzpnckqs6",
@@ -150,6 +131,31 @@ func TestCodec(t *testing.T) {
 		"QNTRL23v947tnqxzk47glhaw2h85cczqatupvwepqu580e09wdyn3r2eeltr",
 		"QNTRLvpp2hzcneda388gq63ncxzplc0p2ut3ygnsr4g4ycav6qj5yz9g9lv8",
 	}
+
+	encoded := "\nencodedStr := []string{\n"
+
+	// Convert hashes to our base32 encoding format
+	for i := range hashedSeeds {
+
+		// Note that we are slicing off a number of bytes at the end according
+		// to the sequence number to get different check byte lengths from a
+		// uniform original data. As such, this will be accounted for in the
+		// check by truncating the same amount in the check (times two, for the
+		// hex encoding of the string).
+		encode, err := Codec.Encode(hashedSeeds[i][:len(hashedSeeds[i])-i%5])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if encode != encodedStr[i] {
+			t.Fatalf("Decode failed, expected '%s' got '%s'",
+				encodedStr, encode,
+			)
+		}
+		encoded += "\t\"" + encode + "\",\n"
+	}
+
+	encoded += "}\n"
+	// t.Log(encoded)
 
 	// Next, decode the encodedStr above, which should be the output of the
 	// original generated seeds, with the index mod 5 truncations performed on
