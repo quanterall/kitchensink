@@ -103,7 +103,7 @@ sequence that builds from the basis to the specific parts for each in the order
 that is needed both for understanding and for the constraints of syntax, grammar
 and build system design...
 
-### 1. Setting up the repository
+### Setting up the repository
 
 The very first thing to do is to create a Git repository. It is not 
 necessary to upload it to your github account or other git hosting, but it's 
@@ -130,16 +130,101 @@ or something like this, whatever the git URL is. It is recommended to use
 ssh, it just makes life simpler and it's faster and no complications with 
 authentication as you have if you use `https` instead.
 
-### 2. Set up the folder hierarchy
+### Set up the folder hierarchy
 
 You can do this with your IDE's file manager or you can use the terminal as 
 you like, but start by making the folder structure that will be used:
 
      
     codec
-    ├── cmd
     └── pkg
         ├── based32
         ├── codecer
         └── proto
     
+It is idiomatic for Go projects to have a `pkg` folder where most of the 
+supporting libraries are found. Generally primary packages live in the root 
+of the repository, in this case the `codec` folder.
+
+These are the first three folders that will have content put in them.
+
+- `based32` will contain the actual implementing code for the human 
+  transcription encoder
+- `codecer` is where the interface specification lives, it is kept separate 
+  so it does not form any circular dependencies between consumer and 
+  implementation.
+- `proto` contains mostly the gRPC protocol specification, the files that 
+  the tooling you installed beforehand will generate, as well as some 
+  additional code that fills in gaps in the current generated files to 
+  simplify the use of the protocol.
+
+### gRPC/Protobuf specification 
+
+First thing we are going to put in place is the protocol specification. This 
+file will be called `based32.proto` inside the `pkg/proto/` folder.
+
+```protobuf
+syntax = "proto3";
+package codec;
+option go_package = "github.com/quanterall/kitchensink/service/proto";
+
+service Transcriber {
+  rpc Encode(stream EncodeRequest) returns (stream EncodeResponse);
+  rpc Decode(stream DecodeRequest) returns (stream DecodeResponse);
+}
+enum Error {
+  ZERO_LENGTH = 0;
+  CHECK_FAILED = 1;
+  NIL_SLICE = 2;
+  CHECK_TOO_SHORT = 3;
+  INCORRECT_HUMAN_READABLE_PART = 4;
+}
+
+message EncodeRequest {
+  bytes Data = 1;
+}
+
+message EncodeResponse {
+  oneof Encoded {
+    string EncodedString = 1;
+    Error Error = 2;
+  }
+}
+
+message DecodeRequest{
+  string EncodedString = 1;
+}
+
+message DecodeResponse {
+  oneof Decoded {
+    bytes Data = 1;
+    Error Error = 2;
+  }
+}
+
+```
+
+Several things need to be noted in order to understand why they are there.
+
+The `option` section needs to point to the URL of the location where the 
+generated source files created by the protocol compiler and tools will be 
+placed. 
+
+In the `service` section you can see the keyword stream. This is there 
+because we are creating a concurrent implementation, meaning that the RPC 
+framework will deliver new messages in a continuous stream and these are 
+fanned out to worker threads.
+
+In the `enum` section, we have all of the possible error codes that will 
+appear, as we are aiming to have a complete specification in this file that 
+all other code refers to as a central point of contact. This is to eliminate 
+any confusion about the protocol should it be implemented in another 
+language framework.
+
+The rest is the usual common idiom for protobuf definitions, with requests 
+and responses as pairs. It is a central principle that you will encounter 
+generally throughout software development but most especially in Go, almost 
+everything comes in pairs. Go does not have variant types (`oneof`) because 
+this can be replaced with interfaces in the language. For this reason we 
+have helpers added to this folder that will simplify the syntax of 
+constructing them while retaining Go tuple syntax on the Go side.
