@@ -103,6 +103,8 @@ sequence that builds from the basis to the specific parts for each in the order
 that is needed both for understanding and for the constraints of syntax, grammar
 and build system design...
 
+## 0. Preliminary filesystem layout
+
 ### Setting up the repository
 
 The very first thing to do is to create a Git repository. It is not necessary to
@@ -157,6 +159,8 @@ These are the first three folders that will have content put in them.
   tooling you installed beforehand will generate, as well as some additional
   code that fills in gaps in the current generated files to simplify the use of
   the protocol.
+
+## 1. Defining API and data structures
 
 ### gRPC/Protobuf specification
 
@@ -409,3 +413,38 @@ These use, as you can see, the exported functions `Encoder` and `Decoder`,
 and thereby satisfy the the interface, which as you saw in the previous 
 section, requires `Encode` and `Decode`, and this source file will compile 
 without error. Well, it doesn't do anything yet.
+
+#### The Generator
+
+Almost forgot to mention the generator at the top of the file. In Go, it is 
+possible to specify a command line invocation that creates one or more 
+source files automatically.
+
+In this case it runs the protobuf compiler to generate further code, which 
+will then appear in the `pkg/proto` folder.
+
+This is given separate treatment in order to explain how to run this 
+generator. The preliminary prerequisites section explains how to get the 
+protobuf compiler installed, and the go plugins, which this generator 
+invocation depend on. 
+
+To generate the files, and in general, no matter how many such lines exist 
+in a source repository, you can have all of them run at once with the 
+following command:
+
+    go generate ./...
+
+The `./...` is a special variation of common unix filename syntax used by 
+the Go compiler suite (everything that runs when you run the `go` command is 
+activated by subcommands) that means recursively descend the file tree and 
+run the command on every file found in the tree. 
+
+In this case, it is in the root of the repository, and just `go generate` 
+would invoke it, but it is more usual that there will be several in a Go 
+source repository. It is a common practise to use GNU `make` and wrap such 
+invocations in a build command, but it is not necessary at this point to 
+teach this, and `make` usage is something that should only happen when there 
+is a lot of fiddly things to handle. 
+
+Later in the section about tests, I will show the simple syntax for running 
+tests in the same way.
