@@ -149,10 +149,11 @@ of the repository, in this case the `codec` folder.
 These are the first three folders that will have content put in them.
 
 - `based32` will contain the actual implementing code for the human 
-  transcription encoder
+  transcription encoder.
 - `codecer` is where the interface specification lives, it is kept separate 
   so it does not form any circular dependencies between consumer and 
-  implementation.
+  implementation. It is the idiom in Go to take a noun related to the 
+  purpose of the interface and turn it into a 'doer' such as String to Stringer.
 - `proto` contains mostly the gRPC protocol specification, the files that 
   the tooling you installed beforehand will generate, as well as some 
   additional code that fills in gaps in the current generated files to 
