@@ -1,5 +1,20 @@
 # kitchensink
 
+- [Teaching Golang via building a Human Readable Binary Transcription Encoding Framework](#teaching-golang-via-building-a-human-readable-binary-transcription-encoding-framework)
+- [Prerequisites](#prerequisites)
+	- [Install Go](#install-go)
+	- [Install Protobuf Compiler](#install-protobuf-compiler)
+	- [Install gRPC plugins for Go](#install-grpc-plugins-for-go)
+- [Step By Step:](#step-by-step)
+- [0. Preliminary filesystem layout](#preliminary-filesystem-layout)
+	- [Setting up the repository](#setting-up-the-repository)
+	- [Set up the folder hierarchy](#set-up-the-folder-hierarchy)
+- [1. Defining API and data structures](#defining-api-and-data-structures)
+	- [gRPC/Protobuf specification](#grpcprotobuf-specification)
+	- [Interface](#interface)
+	- [Specifying the data structure for the package](#specifying-the-data-structure-for-the-package)
+		- [The Generator](#the-generator)
+
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
 In this tutorial we will walk you through the creation from scratch of a human
@@ -309,14 +324,21 @@ interface".
 
 ### Specifying the data structure for the package
 
-We are putting this in the base of the repository for reasons related to the 
-generator function at the top of the following source. This goes in the root 
-in the file `types.go`. It has to be separated from the implementation 
-because this is a prototype rather than a complete implementation, more like 
-a skeletal implementation. 
+We are putting this in the base of the repository for reasons related to the
+generator function at the top of the following source. This goes in the root of
+the repository, in the file `types.go`. It has to be separated from the
+implementation because this is a prototype rather than a complete
+implementation, more like a skeletal implementation.
+
+The package name is `codec` and when I originally wrote this, I used a 
+package alias of `codec` and realised it should just be this. It is 
+confusing, because the root of the package is called `kitchensink` but the 
+package is called `codec`. In general it is preferable to call the package 
+the same name as the folder, in Goland it has options to automatically sync 
+package and folder names.
 
 ```go
-package transcribe
+package codec
 
 // The following line generates the protocol, it assumes that `protoc` is in the
 // path. This directive is run when `go generate` is run in the current package,
@@ -412,6 +434,14 @@ populates the exported function types in the `Codec` type above, so all of the
 values do need to be exported as we haven't defined getter/setter functions for
 them so they can be hidden.
 
+It would even be possible to make these types only exposed via an 
+initialiser function, but such a function would have a very ugly, long list 
+of parameters which look nicer and are more readable in the form of a struct 
+member instead, and encapsulating them even then would create redundancy in 
+the code specification, this way it's simplified. In Go idiom, readability 
+and simplicity are key goals as readable code is easier to maintain and 
+reason about.
+
 Though they could be changed dynamically by consuming code, it just wouldn't
 probably happen, but if the values were changed during runtime it could cause
 race conditions if multiple threads are accessing this type, as it does in the
@@ -465,7 +495,8 @@ fiddly things to handle.
 Later in the section about tests, I will show the simple syntax for running
 tests in the same way.
 
-Yes, in theory one could use relative paths in the various parts of the 
-generator, the `go:generate` directive and the location of the `types.go` 
-structure definitions but putting it at the root of the package makes the 
-paths easy to recognise and specify.
+Yes, in theory one could use relative paths in the various parts of the
+generator, the `go:generate` directive and the location of the `types.go`
+structure definitions but putting it at the root of the package makes the paths
+easy to recognise and specify.
+
