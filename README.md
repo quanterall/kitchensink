@@ -46,13 +46,13 @@ Necessary things that you probably already have:
 
 Go 1.17+ is recommended - unlike most other languages, the forward compatibility
 guarantee is ironclad, so go to [https://go.dev/dl/](https://go.dev/dl/) and
-pick the latest one (1.17.8 at time of writing), "copy link location" on the
+pick the latest one (1.18 at time of writing), "copy link location" on the
 relevant version (linux x86-64)
 
     cd
     mkdir bin 
-    wget https://go.dev/dl/go1.17.8.linux-amd64.tar.gz
-    tar xvf go1.17.8.linux-amd64.tar.gz
+    wget https://go.dev/dl/go1.18.linux-amd64.tar.gz
+    tar xvf go1.18.linux-amd64.tar.gz
 
 Using your favourite editor, open up `~/.bashrc` - or just
 
@@ -251,6 +251,17 @@ representations of data and are an essential tool to avoiding circular
 dependencies, which are not permitted in Go because they cause loops in the
 syntax tree which have to be resolved in order for the compiler to proceed.
 
+Unless the syntax tree is a tree, a directed acyclic graph, the compiler has to
+decide where to prune the graph and this logic is not simple and takes a lot of
+walking back and forth to achieve. The Go language simply rejects code that has
+been structured this way and thus avoids this complexity, and the benefit is
+aside from sometimes getting stuck in this quandary when you can't figure out
+how to break a loop, the compilation is lightning fast.
+
+The usual solution to resolve these loops is to put the conflicting elements
+into one package, as they usually essentially are tightly dependent and really
+belong in the same package.
+
 In other languages, there can be a directive to only include such a dependency
 once, but the result of all this permissive structuring is that it can be
 difficult for the compiler to identify what symbol is being referred to, and the
@@ -297,6 +308,12 @@ work, and what we will do next illustrate what is called "implementing an
 interface".
 
 ### Specifying the data structure for the package
+
+We are putting this in the base of the repository for reasons related to the 
+generator function at the top of the following source. This goes in the root 
+in the file `types.go`. It has to be separated from the implementation 
+because this is a prototype rather than a complete implementation, more like 
+a skeletal implementation. 
 
 ```go
 package transcribe
@@ -391,60 +408,64 @@ as seen here. In Go, exporting a symbol is denoted by using a capital letter.
 Normally one would only export values in this way if it were safe for the caller
 to modify them. In this case, we do indeed modify them. In the remaining folder
 we mentioned to start with, `pkg/based32` we have an initialiser function that
-populates the exported function types in the `Codec` type above, so all of 
-the values do need to be exported as we haven't defined getter/setter 
-functions for them so they can be hidden. 
+populates the exported function types in the `Codec` type above, so all of the
+values do need to be exported as we haven't defined getter/setter functions for
+them so they can be hidden.
 
-Though they could be changed dynamically by consuming code, it just wouldn't 
-probably happen, but if the values were changed during runtime it could 
-cause race conditions if multiple threads are accessing this type, as it 
-does in the gRPC implementation we will show later. It is expected that the 
-consumer of the code won't bother modifying this dynamically as it is for 
-the purpose of implementing a specific encoding, and every single element of 
-the struct is part of a specification that defines the encode and decode 
-process and the form of the outputs of these functions.
+Though they could be changed dynamically by consuming code, it just wouldn't
+probably happen, but if the values were changed during runtime it could cause
+race conditions if multiple threads are accessing this type, as it does in the
+gRPC implementation we will show later. It is expected that the consumer of the
+code won't bother modifying this dynamically as it is for the purpose of
+implementing a specific encoding, and every single element of the struct is part
+of a specification that defines the encode and decode process and the form of
+the outputs of these functions.
 
 Further, as you can see, we make something like an assertion that the interface
 is implemented, specifying that the struct type `Codec` is also
-`codec.Codecer`, the interface. Then after this assertion is the actual 
+`codec.Codecer`, the interface. Then after this assertion is the actual
 implementations.
 
-These use, as you can see, the exported functions `Encoder` and `Decoder`, 
-and thereby satisfy the the interface, which as you saw in the previous 
-section, requires `Encode` and `Decode`, and this source file will compile 
-without error. Well, it doesn't do anything yet.
+These use, as you can see, the exported functions `Encoder` and `Decoder`, and
+thereby satisfy the the interface, which as you saw in the previous section,
+requires `Encode` and `Decode`, and this source file will compile without error.
+Well, it doesn't do anything yet.
 
 #### The Generator
 
-Almost forgot to mention the generator at the top of the file. In Go, it is 
-possible to specify a command line invocation that creates one or more 
-source files automatically.
+Almost forgot to mention the generator at the top of the file. In Go, it is
+possible to specify a command line invocation that creates one or more source
+files automatically.
 
-In this case it runs the protobuf compiler to generate further code, which 
-will then appear in the `pkg/proto` folder.
+In this case it runs the protobuf compiler to generate further code, which will
+then appear in the `pkg/proto` folder.
 
-This is given separate treatment in order to explain how to run this 
-generator. The preliminary prerequisites section explains how to get the 
-protobuf compiler installed, and the go plugins, which this generator 
-invocation depend on. 
+This is given separate treatment in order to explain how to run this generator.
+The preliminary prerequisites section explains how to get the protobuf compiler
+installed, and the go plugins, which this generator invocation depend on.
 
-To generate the files, and in general, no matter how many such lines exist 
-in a source repository, you can have all of them run at once with the 
-following command:
+To generate the files, and in general, no matter how many such lines exist in a
+source repository, you can have all of them run at once with the following
+command:
 
     go generate ./...
 
-The `./...` is a special variation of common unix filename syntax used by 
-the Go compiler suite (everything that runs when you run the `go` command is 
-activated by subcommands) that means recursively descend the file tree and 
-run the command on every file found in the tree. 
+The `./...` is a special variation of common unix filename syntax used by the Go
+compiler suite (everything that runs when you run the `go` command is activated
+by subcommands) that means recursively descend the file tree and run the command
+on every file found in the tree.
 
-In this case, it is in the root of the repository, and just `go generate` 
-would invoke it, but it is more usual that there will be several in a Go 
-source repository. It is a common practise to use GNU `make` and wrap such 
-invocations in a build command, but it is not necessary at this point to 
-teach this, and `make` usage is something that should only happen when there 
-is a lot of fiddly things to handle. 
+In this case, it is in the root of the repository, and just `go generate`
+would invoke it, but it is more usual that there will be several in a Go source
+repository. It is a common practise to use GNU `make` and wrap such invocations
+in a build command, but it is not necessary at this point to teach this,
+and `make` usage is something that should only happen when there is a lot of
+fiddly things to handle.
 
-Later in the section about tests, I will show the simple syntax for running 
+Later in the section about tests, I will show the simple syntax for running
 tests in the same way.
+
+Yes, in theory one could use relative paths in the various parts of the 
+generator, the `go:generate` directive and the location of the `types.go` 
+structure definitions but putting it at the root of the package makes the 
+paths easy to recognise and specify.
