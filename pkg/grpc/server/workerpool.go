@@ -61,10 +61,6 @@ func (t *Transcriber) Start() (stop func()) {
 
 	return func() {
 
-		// Close the stop channel to signal all workers to break out of their
-		// loop.
-		close(t.stop)
-
 		// Wait until all have stopped.
 		t.wait.Wait()
 
