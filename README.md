@@ -6,14 +6,8 @@
 	- [Install Protobuf Compiler](#install-protobuf-compiler)
 	- [Install gRPC plugins for Go](#install-grpc-plugins-for-go)
 - [Step By Step:](#step-by-step)
-- [0. Preliminary filesystem layout](#preliminary-filesystem-layout)
-	- [Setting up the repository](#setting-up-the-repository)
-	- [Set up the folder hierarchy](#set-up-the-folder-hierarchy)
-- [1. Defining API and data structures](#defining-api-and-data-structures)
-	- [gRPC/Protobuf specification](#grpcprotobuf-specification)
-	- [Interface](#interface)
-	- [Specifying the data structure for the package](#specifying-the-data-structure-for-the-package)
-		- [The Generator](#the-generator)
+	- [Step 1](#step-1)
+- [Step 2](#step-2)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -113,96 +107,68 @@ commands will not be accessible.
 
 ## Step By Step:
 
-Here will be the step by step process of building the library with a logical
-sequence that builds from the basis to the specific parts for each in the order
-that is needed both for understanding and for the constraints of syntax, grammar
-and build system design...
+In each case, if you click on the title of the step, it will take you to the 
+step folder where the final state of the repository for each step can be 
+seen in case the tutorial has been unclear where or what you were supposed 
+to end up at, at that point.
 
-## 0. Preliminary filesystem layout
+### [Step 1](steps/step1)
 
-### Setting up the repository
+First thing you do when working with gRPC is define the protocol messages.
 
-The very first thing to do is to create a Git repository. It is not necessary to
-upload it to your github account or other git hosting, but it's standard first
-thing to do, in most cases.
+When creating a Go based repository, it is usual to put all of the internal
+packages into a single folder called 'pkg'.
 
-I will assume your workspace is something like `/home/username/code`. First,
-open up a terminal and go there:
+I will assume that you have created a fresh new repository on your github
+account, with readme already created for it, licence is up to you, I always use
+unlicence unless I am forking code with other licences.
 
-    $ cd code
-    $ mkdir codec
-    $ cd codec
+Inside `pkg` create a new directory `proto` and create a new
+file `based32.proto`
 
-Next, initialise the git repository
-
-     $ git init 
-     Initialized empty Git repository in /home/username/code/codec/.git/
-
-If you are going to use github or so, you can instead just create the repository
-there and
-
-    $ git clone git@github.com/username/codec.git 
-
-or something like this, whatever the git URL is. It is recommended to use ssh,
-it just makes life simpler and it's faster and no complications with
-authentication as you have if you use `https` instead.
-
-### Set up the folder hierarchy
-
-You can do this with your IDE's file manager or you can use the terminal as you
-like, but start by making the folder structure that will be used:
-
-    codec
-    └── pkg
-        ├── based32
-        ├── codecer
-        └── proto
-
-It is idiomatic for Go projects to have a `pkg` folder where most of the
-supporting libraries are found. Generally primary packages live in the root of
-the repository, in this case the `codec` folder.
-
-These are the first three folders that will have content put in them.
-
-- `based32` will contain the actual implementing code for the human
-  transcription encoder.
-- `codecer` is where the interface specification lives, it is kept separate so
-  it does not form any circular dependencies between consumer and
-  implementation. It is the idiom in Go to take a noun related to the purpose of
-  the interface and turn it into a 'doer' such as String to Stringer.
-- `proto` contains mostly the gRPC protocol specification, the files that the
-  tooling you installed beforehand will generate, as well as some additional
-  code that fills in gaps in the current generated files to simplify the use of
-  the protocol.
-
-## 1. Defining API and data structures
-
-### gRPC/Protobuf specification
-
-First thing we are going to put in place is the protocol specification. This
-file will be called `based32.proto` inside the `pkg/proto/` folder.
-
-It contains a service definition, defining an API call, and the request and
-response are then elaborated lower down, as well as the errors that can be
-returned.
+First part of the protobuf file is the header section:
 
 ```protobuf
 syntax = "proto3";
 package codec;
-option go_package = "github.com/quanterall/kitchensink/service/proto";
+option go_package = "github.com/quanterall/kitchensink/pkg/proto";
+```
 
+Firstly, the syntax line indicates the version of protobuf that is being used,
+that is `proto3` currently.
+
+Second, the package line has no effect when using the Go plugin for protobuf.
+
+Third is the line that actually does things for the Go version. The path is the
+same as what appears in the `import` line where this package is being imported
+from, and should be the same as the repository root, plus `pkg/proto`.
+
+Next, the service definition:
+
+```protobuf
 service Transcriber {
   rpc Encode(stream EncodeRequest) returns (stream EncodeResponse);
   rpc Decode(stream DecodeRequest) returns (stream DecodeResponse);
 }
-enum Error {
-  ZERO_LENGTH = 0;
-  CHECK_FAILED = 1;
-  NIL_SLICE = 2;
-  CHECK_TOO_SHORT = 3;
-  INCORRECT_HUMAN_READABLE_PART = 4;
-}
+```
 
+A `service` in protobuf defines the API for a named service. In this case we
+have encode and decode.
+
+Note the `stream` keywords in the messages. This means that the generated code
+will create a streaming RPC for the messages, which means that handling the
+scheduling of the work is in the hands of the implementation rather than using
+the built in goroutine spawning default handler.
+
+This is important because although for relatively small scale applications it
+can be ok to let Go manage spawning and freeing goroutines, for a serious large
+scale or high performance API, you should be keeping the goroutines warm and
+delivering them jobs with channels, as we will be in this tutorial. Teaching 
+concurrency is one of the goals of this tutorial.
+
+Next, the encode messages:
+
+```protobuf
 message EncodeRequest {
   bytes Data = 1;
 }
@@ -213,6 +179,28 @@ message EncodeResponse {
     Error Error = 2;
   }
 }
+```
+
+The request is very simple, it just uses bytes. Note that although in many 
+cases for such data in Go, it will be fixed length, such as 32 byte long 
+keys, hashes, and 65 byte long signatures, protobuf does not have a notion 
+of fixed length bytes. It is not necessary to add a field to designate the 
+length of the message, as this is handled correctly by the implementing code 
+it generates.
+
+The response uses a variant called `oneof` in protobuf. This is not native 
+to Go, and for which reason we will be showing a small fix we add to the 
+generated code package to account for this. In Go, returns are tuples, 
+usually `result, error`, but in other languages like Rust and C++ they are 
+encoded as a "variant" which is a type of `union` type. The nearest 
+equivalent in Go is an `interface` but interfaces can be anything. The union 
+type was left out of Go because it breaks C's otherwise strict typing system 
+(and yes, this has been one of the many ways in which C code has been 
+exploited to break security, which is why Go lacks it).
+
+Next, the decode messages:
+
+```protobuf
 
 message DecodeRequest{
   string EncodedString = 1;
@@ -224,279 +212,21 @@ message DecodeResponse {
     Error Error = 2;
   }
 }
-
 ```
 
-Several things need to be noted in order to understand why they are there.
+They are exactly the same, except the types are reversed, encode is bytes to 
+string, decode is string to bytes, reversing the process.
 
-The `option` section needs to point to the URL of the location where the
-generated source files created by the protocol compiler and tools will be
-placed.
-
-In the `service` section you can see the keyword stream. This is there because
-we are creating a concurrent implementation, meaning that the RPC framework will
-deliver new messages in a continuous stream and these are fanned out to worker
-threads.
-
-In the `enum` section, we have all of the possible error codes that will appear,
-as we are aiming to have a complete specification in this file that all other
-code refers to as a central point of contact. This is to eliminate any confusion
-about the protocol should it be implemented in another language framework.
-
-The rest is the usual common idiom for protobuf definitions, with requests and
-responses as pairs. It is a central principle that you will encounter generally
-throughout software development but most especially in Go, almost everything
-comes in pairs. Go does not have variant types (`oneof`) because this can be
-replaced with interfaces in the language. For this reason we have helpers added
-to this folder that will simplify the syntax of constructing them while
-retaining Go tuple syntax on the Go side.
-
-### Interface
-
-It is not always necessary to make interfaces when there will only ever be one
-implementation for a given API, however, we will show how to use them in this
-tutorial as you will encounter them and probably need them sooner or later.
-
-Interfaces are essentially a special type of pointer with a type signature that
-associates with a set of methods that must be implemented for the type to be
-available to use in the place of the interface type.
-
-The users of interfaces do not need to know anything about the internal
-representations of data and are an essential tool to avoiding circular
-dependencies, which are not permitted in Go because they cause loops in the
-syntax tree which have to be resolved in order for the compiler to proceed.
-
-Unless the syntax tree is a tree, a directed acyclic graph, the compiler has to
-decide where to prune the graph and this logic is not simple and takes a lot of
-walking back and forth to achieve. The Go language simply rejects code that has
-been structured this way and thus avoids this complexity, and the benefit is
-aside from sometimes getting stuck in this quandary when you can't figure out
-how to break a loop, the compilation is lightning fast.
-
-The usual solution to resolve these loops is to put the conflicting elements
-into one package, as they usually essentially are tightly dependent and really
-belong in the same package.
-
-In other languages, there can be a directive to only include such a dependency
-once, but the result of all this permissive structuring is that it can be
-difficult for the compiler to identify what symbol is being referred to, and the
-logic for breaking these loops is complex, and that costs time in compilation.
-
-The most well known interface in Go is the `Stringer` which is satisfied when a
-method is created to render a variable into a string, with the signature
-`String() string` and is used to render text through the `fmt` standard library
-package.
-
-The usual convention is to name the interface after the thing it does, so here
-we use the word Codecer, which means something that makes an encoder/decoder
-that produces strings from binary and binary back to strings, a type of codec,
-thus, `Codecer`.
-
-This file should go in `pkg/codecer/codecer.go`
-
-```go
-package codecer
-
-// Codecer is the externally usable interface which provides a check for
-// complete implementation as well as illustrating the use of interfaces in Go.
-type Codecer interface {
-
-	// Encode takes an arbitrary length byte input and returns the output as
-	// defined for the codec.
-	Encode(input []byte) (output string, err error)
-
-	// Decode takes an encoded string and returns if the encoding is valid and
-	// the value passes any check function defined for the type.
-	//
-	// If the check fails or the input is too short to have a check, false and
-	// nil is returned. This is the contract for this method that
-	// implementations should uphold.
-	Decode(input string) (output []byte, err error)
+```protobuf
+enum Error {
+  ZERO_LENGTH = 0;
+  CHECK_FAILED = 1;
+  NIL_SLICE = 2;
+  CHECK_TOO_SHORT = 3;
+  INCORRECT_HUMAN_READABLE_PART = 4;
 }
 
 ```
 
-You can see that this specification is very much the same basic specification as
-you find in the proto file. We are not going to actually implement two or more
-versions of this interface, however, it is important to understand how they
-work, and what we will do next illustrate what is called "implementing an
-interface".
-
-### Specifying the data structure for the package
-
-We are putting this in the base of the repository for reasons related to the
-generator function at the top of the following source. This goes in the root of
-the repository, in the file `types.go`. It has to be separated from the
-implementation because this is a prototype rather than a complete
-implementation, more like a skeletal implementation.
-
-The package name is `codec` and when I originally wrote this, I used a 
-package alias of `codec` and realised it should just be this. It is 
-confusing, because the root of the package is called `kitchensink` but the 
-package is called `codec`. In general it is preferable to call the package 
-the same name as the folder, in Goland it has options to automatically sync 
-package and folder names.
-
-```go
-package codec
-
-// The following line generates the protocol, it assumes that `protoc` is in the
-// path. This directive is run when `go generate` is run in the current package,
-// or if a wildcard was used ( go generate ./... ).
-//go:generate protoc -I=. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./pkg/proto/based32.proto
-
-import (
-	"github.com/quanterall/kitchensink/pkg/codecer"
-)
-
-type EncodeRes struct {
-	String string
-	Error  error
-}
-
-type DecodeRes struct {
-	Bytes []byte
-	Error error
-}
-
-// Codec is the collection of elements that creates a Human Readable Binary
-// Transcription Codec
-type Codec struct {
-
-	// Name is the human readable name given to this encoder
-	Name string
-
-	// HRP is the Human Readable Prefix to be appended in front of the encoding
-	// to disambiguate it from another encoding or as a network or protocol
-	// identifier. 
-	HRP string
-
-	// Charset is the set of characters that the encoder uses. This should match
-	// the output encoder, 32 for using base32, 64 for base64, etc.
-	Charset string
-
-	// Encode takes an arbitrary length byte input and returns the output as
-	// defined for the codec
-	Encoder func(input []byte) (output string, err error)
-
-	// Decode takes an encoded string and returns if the encoding is valid and
-	// the value passes any check function defined for the type.
-	Decoder func(input string) (output []byte, err error)
-
-	// AddCheck is used by Encode to add extra bytes for the checksum to ensure
-	// correct input so user does not send to a wrong address by mistake, for
-	// example.
-	MakeCheck func(input []byte, checkLen int) (output []byte)
-
-	// Check returns whether the check is valid
-	Check func(input []byte) (err error)
-}
-
-// This ensures the interface is satisfied for codecer.Codecer and is removed in
-// the generated binary because the underscore indicates the value is discarded.
-var _ codecer.Codecer = &Codec{}
-
-// Encode implements the codecer.Codecer.Encode by calling the provided
-// function, and allows the concrete Codec type to always satisfy the interface,
-// while allowing it to be implemented entirely differently.
-//
-// Note: short functions like this can be one-liners according to gofmt.
-func (c Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
-
-// Decode implements the codecer.Codecer.Decode by calling the provided
-// function, and allows the concrete Codec type to always satisfy the interface,
-// while allowing it to be implemented entirely differently.
-//
-// Note: this also can be a one liner. Since we name the return values in the
-// type definition and interface, omitting them here makes the line short enough
-// to be a one liner.
-func (c Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }
-
-```
-
-There is a few things in here, so I will describe them part by part in order
-they appear.
-
-First, you can see that it imports the `codecer` package, as this interface is
-implemented further down.
-
-There is result types specified as they make the implementation more simple with
-the channels used to implement the worker pool, as there is no tuple type in Go,
-only struct, which has a definite type and order and compact storage format.
-
-It is not strictly necessary to export any of the elements of the Codec struct
-as seen here. In Go, exporting a symbol is denoted by using a capital letter.
-
-Normally one would only export values in this way if it were safe for the caller
-to modify them. In this case, we do indeed modify them. In the remaining folder
-we mentioned to start with, `pkg/based32` we have an initialiser function that
-populates the exported function types in the `Codec` type above, so all of the
-values do need to be exported as we haven't defined getter/setter functions for
-them so they can be hidden.
-
-It would even be possible to make these types only exposed via an 
-initialiser function, but such a function would have a very ugly, long list 
-of parameters which look nicer and are more readable in the form of a struct 
-member instead, and encapsulating them even then would create redundancy in 
-the code specification, this way it's simplified. In Go idiom, readability 
-and simplicity are key goals as readable code is easier to maintain and 
-reason about.
-
-Though they could be changed dynamically by consuming code, it just wouldn't
-probably happen, but if the values were changed during runtime it could cause
-race conditions if multiple threads are accessing this type, as it does in the
-gRPC implementation we will show later. It is expected that the consumer of the
-code won't bother modifying this dynamically as it is for the purpose of
-implementing a specific encoding, and every single element of the struct is part
-of a specification that defines the encode and decode process and the form of
-the outputs of these functions.
-
-Further, as you can see, we make something like an assertion that the interface
-is implemented, specifying that the struct type `Codec` is also
-`codec.Codecer`, the interface. Then after this assertion is the actual
-implementations.
-
-These use, as you can see, the exported functions `Encoder` and `Decoder`, and
-thereby satisfy the the interface, which as you saw in the previous section,
-requires `Encode` and `Decode`, and this source file will compile without error.
-Well, it doesn't do anything yet.
-
-#### The Generator
-
-Almost forgot to mention the generator at the top of the file. In Go, it is
-possible to specify a command line invocation that creates one or more source
-files automatically.
-
-In this case it runs the protobuf compiler to generate further code, which will
-then appear in the `pkg/proto` folder.
-
-This is given separate treatment in order to explain how to run this generator.
-The preliminary prerequisites section explains how to get the protobuf compiler
-installed, and the go plugins, which this generator invocation depend on.
-
-To generate the files, and in general, no matter how many such lines exist in a
-source repository, you can have all of them run at once with the following
-command:
-
-    go generate ./...
-
-The `./...` is a special variation of common unix filename syntax used by the Go
-compiler suite (everything that runs when you run the `go` command is activated
-by subcommands) that means recursively descend the file tree and run the command
-on every file found in the tree.
-
-In this case, it is in the root of the repository, and just `go generate`
-would invoke it, but it is more usual that there will be several in a Go source
-repository. It is a common practise to use GNU `make` and wrap such invocations
-in a build command, but it is not necessary at this point to teach this,
-and `make` usage is something that should only happen when there is a lot of
-fiddly things to handle.
-
-Later in the section about tests, I will show the simple syntax for running
-tests in the same way.
-
-Yes, in theory one could use relative paths in the various parts of the
-generator, the `go:generate` directive and the location of the `types.go`
-structure definitions but putting it at the root of the package makes the paths
-easy to recognise and specify.
+## [Step 2](steps/step2)
 

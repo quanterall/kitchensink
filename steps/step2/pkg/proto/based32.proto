@@ -1,6 +1,6 @@
 syntax = "proto3";
 package codec;
-option go_package = "github.com/quanterall/kitchensink/pkg/proto";
+option go_package = "github.com/quanterall/kitchensink/service/proto";
 
 service Transcriber {
   rpc Encode(stream EncodeRequest) returns (stream EncodeResponse);
