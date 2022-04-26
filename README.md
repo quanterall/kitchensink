@@ -278,7 +278,11 @@ generate our RPC API that we are going to show a workaround for
 - code that transforms the result types for the calls from the `result, error`
   idiom to the variant syntax as shown in the protocol and necessary in many
   cases for variant using languages like Rust and C++ to conform with
-  *their* static type breaking variant type.1
+  *their* static type breaking variant types.
+
+Create a new file called `error.go` in the `pkg/proto` directory. This file 
+will become part of the `proto` package and in here we can directly access 
+internally defined parts of the generated code if needed.
 
 ```go
 // Package proto is the protocol buffers specification and generated code
