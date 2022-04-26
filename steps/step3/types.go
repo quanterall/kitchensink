@@ -90,7 +90,7 @@ var _ codecer.Codecer = &Codec{}
 // while allowing it to be implemented entirely differently.
 //
 // Note: short functions like this can be one-liners according to gofmt.
-func (c Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
+func (c *Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
 
 // Decode implements the codecer.Codecer.Decode by calling the provided
 // function, and allows the concrete Codec type to always satisfy the interface,
@@ -99,4 +99,4 @@ func (c Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
 // Note: this also can be a one liner. Since we name the return values in the
 // type definition and interface, omitting them here makes the line short enough
 // to be a one liner.
-func (c Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }
+func (c *Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }

@@ -305,13 +305,13 @@ described in the `service` section of the `based32.proto` file.
 
 #### Create the interface
 
-In this project we are creating an interface in part to demonstrate how to 
-use them. Being such a small library, it may not be necessary to do this, 
-but it is rare that you will be making such small packages in practise, so 
-we want to show you how to work with interfaces.
+In this project we are creating an interface in part to demonstrate how to use
+them. Being such a small library, it may not be necessary to do this, but it is
+rare that you will be making such small packages in practise, so we want to show
+you how to work with interfaces.
 
-Create a new folder inside `pkg/` called `codecer`. The name comes from the 
-convention in Go to name interfaces by what they do. A codec is an 
+Create a new folder inside `pkg/` called `codecer`. The name comes from the
+convention in Go to name interfaces by what they do. A codec is an
 encoder/decoder, so a thing that defines a codec interface is a `codecer`.
 
 In `pkg/codecer` create a file `interface.go` and put this in it:
@@ -340,10 +340,10 @@ type Codecer interface {
 }
 ```
 
-Note that in the comments we are specifying some things about the contract 
-that this interface should uphold. This is a good practise to help users of 
-your libraries know what to expect, and so you don't create or inspire 
-someone to create an 'undefined behaviour' that could become a security vulnerability.
+Note that in the comments we are specifying some things about the contract that
+this interface should uphold. This is a good practise to help users of your
+libraries know what to expect, and so you don't create or inspire someone to
+create an 'undefined behaviour' that could become a security vulnerability.
 
 #### The concrete type
 
@@ -357,15 +357,15 @@ applications that use our code.
 package codec
 
 import (
-    "github.com/quanterall/kitchensink/pkg/codecer"
+	"github.com/quanterall/kitchensink/pkg/codecer"
 )
 ```
 
 #### Defining a generalised type framework
 
-This is a configuration data structure that bundles configuration and 
-implementation functions together. The function types defined are able to be 
-changed by calling code, which we use to create an initialiser in the main 
+This is a configuration data structure that bundles configuration and
+implementation functions together. The function types defined are able to be
+changed by calling code, which we use to create an initialiser in the main
 `based32` package a little later.
 
 ```go
@@ -417,7 +417,7 @@ type Codec struct {
 
 #### Interface Implementation Assertion
 
-The following var line makes it so the compiler will throw an error if the 
+The following var line makes it so the compiler will throw an error if the
 interface is not implemented.
 
 ```go
@@ -432,9 +432,38 @@ var _ codecer.Codecer = &Codec{}
 
 #### Interface implementation using an embedded function
 
-The type defined in the previous section provides for a changeable function 
-for encode and decode. These are used here to automatically satisfy the 
-interface defined in the previous section
+The type defined in the previous section provides for a changeable function for
+encode and decode. These are used here to automatically satisfy the interface
+defined in the previous section
+
+You will notice that the receiver (the variable defined before the function
+name) here is `*Codec`.
+
+More often you will create methods that refer to the pointer to the type because
+they will be struct types and methods that call on a non pointer method copy the
+struct, which may not have the desired result as this will result in concurrent
+copies of values that are not the same variable, and are discarded at the end of
+this method's execution.
+
+When the type is a potentially shared or structured (struct or `[]`) type, the
+copy will waste time copying the value, or referring to a common version in the
+pointer embedded within the slice type (or map), and memory to store the copy,
+and potentially lead to errors from race conditions or unexpected state
+divergence if the functions mutate values inside the structure. Usually non
+pointer methods are only used on simple value types like specially modified
+versions of value types (anything up to 64 bits in size, but also arrays, which
+are `[number]type` as opposed to `[]type`), or when this copying behaviour is
+intended to deliberately avoid race conditions, and the shallow copy will not
+introduce unwanted behaviours.
+
+In this case, the pointer is fine, because it is not intended that the 
+`Codec` type ever be changed after initialisation. However, because its 
+methods and fields are exposed, code that reaches through and modifies this 
+could break this assumption. However, the rationale for such a mutation is 
+hard to justify or even conceive so any programmer who mutates this 
+particular structure is behaving in a very idiosyncratic way which might be 
+called stupid, or may just mean they are ignorant of the implications of 
+concurrency, or, alternatively, they know, and their code is not concurrent.
 
 ```go
 // Encode implements the codecer.Codecer.Encode by calling the provided
@@ -442,7 +471,7 @@ interface defined in the previous section
 // while allowing it to be implemented entirely differently.
 //
 // Note: short functions like this can be one-liners according to gofmt.
-func (c Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
+func (c *Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
 
 // Decode implements the codecer.Codecer.Decode by calling the provided
 // function, and allows the concrete Codec type to always satisfy the interface,
@@ -451,7 +480,7 @@ func (c Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
 // Note: this also can be a one liner. Since we name the return values in the
 // type definition and interface, omitting them here makes the line short enough
 // to be a one liner.
-func (c Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }
+func (c *Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }
 ```
 
 #### Making the output code more useful with some extensions
@@ -486,17 +515,17 @@ generated code.
 First, take note that comments above the package line should start "Package
 packagename..." and these lines will appear in
 [https://pkg.go.dev/](https://pkg.go.dev/)
-when you publish them on one of the numerous well known git hosting services, and a
-user searches for them by their URL in the search bar at the top of that
-page. This is referred to as 'godoc' and these texts can be also seen by
-using commands with the `go` CLI application to print them to console or
-serve a local version of what will appear on the above page.
+when you publish them on one of the numerous well known git hosting services,
+and a user searches for them by their URL in the search bar at the top of that
+page. This is referred to as 'godoc' and these texts can be also seen by using
+commands with the `go` CLI application to print them to console or serve a local
+version of what will appear on the above page.
 
-Most IDEs for Go will nag you to put these in. The one above package is not
-so important but every exported symbol (starting with a capital letter) in
-your source code should have a comment starting with the symbol and
-explaining what it is. The symbol can be preceded by an article, A or The if
-it makes more sense to write it that way.
+Most IDEs for Go will nag you to put these in. The one above package is not so
+important but every exported symbol (starting with a capital letter) in your
+source code should have a comment starting with the symbol and explaining what
+it is. The symbol can be preceded by an article, A or The if it makes more sense
+to write it that way.
 
 ```go
 // Package proto is the protocol buffers specification and generated code
@@ -520,6 +549,7 @@ In Goland IDE this can be invoked directly from the editor.
 // or if a wildcard was used ( go generate ./... ).
 //go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./based32.proto
 ```
+
 #### Import Alias
 
 Note the import alias here is present to explicitly refer to its' name as set in
@@ -534,7 +564,7 @@ of a package and the folder it lives in.
 Go will expect the name defined in this line to refer to this package, so it is
 confusing to see the export ending with a different word. In such cases it is
 common to explicitly use a renaming prefix in the import (an alias that is found
-just before the import path in an import block or statement). This is why we 
+just before the import path in an import block or statement). This is why we
 have it here, even though in the `types.go` file it has `package codec`
 
 ```go
@@ -545,22 +575,22 @@ import (
 
 #### Adding a Stringer for the generated Error type
 
-The protobuf compiler creates a type Error to match the one defined in our 
-proto file, but, it does not automatically generate the stringer for it. 
-Normal types would just have a `String() string` function for this, but 
-error types have a special different 'stringer' called `Error() string`. 
-This makes it possible to return this Error type as an error, but at the 
-same time easily print the text defined in the proto file.
+The protobuf compiler creates a type Error to match the one defined in our proto
+file, but, it does not automatically generate the stringer for it. Normal types
+would just have a `String() string` function for this, but error types have a
+special different 'stringer' called `Error() string`. This makes it possible to
+return this Error type as an error, but at the same time easily print the text
+defined in the proto file.
 
-Yes, just defining this function does the both things in one, because any 
-type with a method with the signature `Error() string` becomes an 
-implementation of the `error` interface (yes, lower case, it is built in). I 
-am not sure when this came into force, some time around 1.13 version or so.
+Yes, just defining this function does the both things in one, because any type
+with a method with the signature `Error() string` becomes an implementation of
+the `error` interface (yes, lower case, it is built in). I am not sure when this
+came into force, some time around 1.13 version or so.
 
-The Go protobuf plugins don't make any assumptions just because you call the 
-enumeration type "Error" that it means it should be an `error` type, so we 
-have to explicitly tell it this here, which makes consuming code much more 
-readable and understandable.
+The Go protobuf plugins don't make any assumptions just because you call the
+enumeration type "Error" that it means it should be an `error` type, so we have
+to explicitly tell it this here, which makes consuming code much more readable
+and understandable.
 
 ```go
 // Error implements the Error interface which allows this error to automatically
@@ -584,10 +614,10 @@ func (x Error) Error() string {
 
 #### Convenience types for results
 
-The following types will be used elsewhere, as well as for the following 
-create response functions. These are primarily to accommodate for the fact 
-that protobuf follows c++ conventions with eth use of 'oneof' variant types, 
-which don't exist in Go.
+The following types will be used elsewhere, as well as for the following create
+response functions. These are primarily to accommodate for the fact that
+protobuf follows c++ conventions with eth use of 'oneof' variant types, which
+don't exist in Go.
 
 ```go
 // EncodeRes makes a more convenient return type for the results
@@ -605,29 +635,28 @@ type DecodeRes struct {
 
 #### Create Response Helper Functions
 
-The following functions create convenient functions to return the result or 
-the error correctly for creating the correct data structure for the gRPC 
-response messages. 
+The following functions create convenient functions to return the result or the
+error correctly for creating the correct data structure for the gRPC response
+messages.
 
-It is idiomatic for protobuf to use these variant types (union of one of 
-several types) as protobuf was originally designed for C++ and other 
-languages, such as Rust and Java also use variants, but Go does not, as this 
-is redundant complexity. 
+It is idiomatic for protobuf to use these variant types (union of one of several
+types) as protobuf was originally designed for C++ and other languages, such as
+Rust and Java also use variants, but Go does not, as this is redundant
+complexity.
 
-It does mean that Go code that cooperates with 
-these variant using languages and conventions is more complicated, so we 
-make these helpers. These probably could be generated automatically but 
-currently aren't. Common conventions are not necessarily based on the best 
-interests of compiler writers, as this case exemplifies the underlying 
-complexity that variants impose on the compiler unnecessarily.
+It does mean that Go code that cooperates with these variant using languages and
+conventions is more complicated, so we make these helpers. These probably could
+be generated automatically but currently aren't. Common conventions are not
+necessarily based on the best interests of compiler writers, as this case
+exemplifies the underlying complexity that variants impose on the compiler
+unnecessarily.
 
-It is not mandatory, as a Go programmer, for you to obey these conventions, 
-they are here in this protobuf specification because you will encounter it a 
-lot. For the good of your fellow programmers, create return types with 
-result and error. There is cases where it makes sense to return a result AND 
-an error, where such an error is not fatal, and the variant return 
-convention ignores this, and makes more complexity for programmers, and 
-compiler writers.
+It is not mandatory, as a Go programmer, for you to obey these conventions, they
+are here in this protobuf specification because you will encounter it a lot. For
+the good of your fellow programmers, create return types with result and error.
+There is cases where it makes sense to return a result AND an error, where such
+an error is not fatal, and the variant return convention ignores this, and makes
+more complexity for programmers, and compiler writers.
 
 ```go
 
