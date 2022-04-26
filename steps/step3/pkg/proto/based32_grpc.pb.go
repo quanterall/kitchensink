@@ -31,7 +31,7 @@ func NewTranscriberClient(cc grpc.ClientConnInterface) TranscriberClient {
 }
 
 func (c *transcriberClient) Encode(ctx context.Context, opts ...grpc.CallOption) (Transcriber_EncodeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Transcriber_ServiceDesc.Streams[0], "/proto.Transcriber/Encode", opts...)
+	stream, err := c.cc.NewStream(ctx, &Transcriber_ServiceDesc.Streams[0], "/codec.Transcriber/Encode", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (x *transcriberEncodeClient) Recv() (*EncodeResponse, error) {
 }
 
 func (c *transcriberClient) Decode(ctx context.Context, opts ...grpc.CallOption) (Transcriber_DecodeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Transcriber_ServiceDesc.Streams[1], "/proto.Transcriber/Decode", opts...)
+	stream, err := c.cc.NewStream(ctx, &Transcriber_ServiceDesc.Streams[1], "/codec.Transcriber/Decode", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (x *transcriberDecodeServer) Recv() (*DecodeRequest, error) {
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Transcriber_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.Transcriber",
+	ServiceName: "codec.Transcriber",
 	HandlerType: (*TranscriberServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
@@ -197,5 +197,5 @@ var Transcriber_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "based32.proto",
+	Metadata: "pkg/proto/based32.proto",
 }

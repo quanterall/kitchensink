@@ -236,12 +236,6 @@ func makeCodec(
 
 		if !valid {
 
-			// In general, it is better to check for error before the success
-			// path, which in this case means no error to log.
-			log.Printf(
-				"Checksum failed, check value: '%x' calculated checksum: '%x",
-				checksum, computedChecksum,
-			)
 			err = proto.Error_CHECK_FAILED
 		}
 
@@ -304,7 +298,8 @@ func makeCodec(
 		checkLen := int(data[0])
 		if writtenBytes < checkLen+1 {
 
-			log.Println("Input is not long enough to have a check value")
+			err = proto.Error_CHECK_TOO_SHORT
+
 			return
 
 		}

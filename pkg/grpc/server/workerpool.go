@@ -1,7 +1,6 @@
 package server
 
 import (
-	codec "github.com/quanterall/kitchensink"
 	"github.com/quanterall/kitchensink/pkg/based32"
 	"github.com/quanterall/kitchensink/pkg/proto"
 	"go.uber.org/atomic"
@@ -14,8 +13,8 @@ type Transcriber struct {
 	stop                       chan struct{}
 	encode                     []chan *proto.EncodeRequest
 	decode                     []chan *proto.DecodeRequest
-	encodeRes                  []chan codec.EncodeRes
-	decodeRes                  []chan codec.DecodeRes
+	encodeRes                  []chan proto.EncodeRes
+	decodeRes                  []chan proto.DecodeRes
 	encCallCount, decCallCount *atomic.Uint32
 	workers                    uint32
 	wait                       sync.WaitGroup
@@ -31,8 +30,8 @@ func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
 		stop:         stop,
 		encode:       make([]chan *proto.EncodeRequest, workers),
 		decode:       make([]chan *proto.DecodeRequest, workers),
-		encodeRes:    make([]chan codec.EncodeRes, workers),
-		decodeRes:    make([]chan codec.DecodeRes, workers),
+		encodeRes:    make([]chan proto.EncodeRes, workers),
+		decodeRes:    make([]chan proto.DecodeRes, workers),
 		encCallCount: atomic.NewUint32(0),
 		decCallCount: atomic.NewUint32(0),
 		workers:      workers,
@@ -43,8 +42,8 @@ func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
 	for i := uint32(0); i < workers; i++ {
 		t.encode[i] = make(chan *proto.EncodeRequest)
 		t.decode[i] = make(chan *proto.DecodeRequest)
-		t.encodeRes[i] = make(chan codec.EncodeRes)
-		t.decodeRes[i] = make(chan codec.DecodeRes)
+		t.encodeRes[i] = make(chan proto.EncodeRes)
+		t.decodeRes[i] = make(chan proto.DecodeRes)
 	}
 
 	return t
@@ -82,7 +81,7 @@ out:
 
 			t.encCallCount.Inc()
 			res, err := based32.Codec.Encode(msg.Data)
-			t.encodeRes[worker] <- codec.EncodeRes{
+			t.encodeRes[worker] <- proto.EncodeRes{
 				String: res,
 				Error:  err,
 			}
@@ -92,7 +91,7 @@ out:
 			t.decCallCount.Inc()
 
 			bytes, err := based32.Codec.Decode(msg.EncodedString)
-			t.decodeRes[worker] <- codec.DecodeRes{
+			t.decodeRes[worker] <- proto.DecodeRes{
 				Bytes: bytes,
 				Error: err,
 			}

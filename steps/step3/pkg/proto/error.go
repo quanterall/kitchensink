@@ -5,9 +5,10 @@
 // generated code that make programming the protocol simpler.
 package proto
 
-import (
-	transcribe "github.com/quanterall/kitchensink"
-)
+// The following line generates the protocol, it assumes that `protoc` is in the
+// path. This directive is run when `go generate` is run in the current package,
+// or if a wildcard was used ( go generate ./... ).
+//go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./based32.proto
 
 // Error implements the Error interface which allows this error to automatically
 // generate from the error code.
@@ -26,9 +27,21 @@ func (x Error) Error() string {
 	return Error_name[int32(x)]
 }
 
-// CreateEncodeResponse is a helper to turn a transcribe.EncodeRes into an
+// EncodeRes makes a more convenient return type for the results
+type EncodeRes struct {
+	String string
+	Error  error
+}
+
+// DecodeRes makes a more convenient return type for the results
+type DecodeRes struct {
+	Bytes []byte
+	Error error
+}
+
+// CreateEncodeResponse is a helper to turn a proto.EncodeRes into an
 // EncodeResponse to be returned to a gRPC client.
-func CreateEncodeResponse(res transcribe.EncodeRes) (response *EncodeResponse) {
+func CreateEncodeResponse(res EncodeRes) (response *EncodeResponse) {
 
 	// First, create the response structure.
 	response = &EncodeResponse{}
@@ -54,9 +67,9 @@ func CreateEncodeResponse(res transcribe.EncodeRes) (response *EncodeResponse) {
 	return
 }
 
-// CreateDecodeResponse is a helper to turn a transcribe.DecodeRes into an
+// CreateDecodeResponse is a helper to turn a proto.DecodeRes into an
 // DecodeResponse to be returned to a gRPC client.
-func CreateDecodeResponse(res transcribe.DecodeRes) (response *DecodeResponse) {
+func CreateDecodeResponse(res DecodeRes) (response *DecodeResponse) {
 
 	// First, create the response structure.
 	response = &DecodeResponse{}

@@ -5,6 +5,7 @@
 	- [Install Go](#install-go)
 	- [Install Protobuf Compiler](#install-protobuf-compiler)
 	- [Install gRPC plugins for Go](#install-grpc-plugins-for-go)
+	- [Initialize your repository](#initialize-your-repository)
 - [Step By Step:](#step-by-step)
 	- [Step 1 Create the Protobuf specification](#step-1-create-the-protobuf-specification)
 		- [The header section](#the-header-section)
@@ -13,7 +14,19 @@
 		- [The decode messages](#the-decode-messages)
 		- [The errors](#the-errors)
 	- [Step 2 Complete the creation of the protobuf implementations](#step-2-complete-the-creation-of-the-protobuf-implementations)
+	- [Step 3 Create the base types and interfaces](#step-3-create-the-base-types-and-interfaces)
+		- [Create the interface](#create-the-interface)
+		- [The concrete type](#the-concrete-type)
+		- [Package header](#package-header)
+		- [Import Alias](#import-alias)
+		- [Defining a generalised type framework](#defining-a-generalised-type-framework)
+		- [Interface Implementation Assertion](#interface-implementation-assertion)
+		- [Interface implementation using an embedded function](#interface-implementation-using-an-embedded-function)
 		- [Making the output code more useful with some extensions](#making-the-output-code-more-useful-with-some-extensions)
+		- [Documentation comments in Go](#documentation-comments-in-go)
+		- [go:generate line](#gogenerate-line)
+		- [Convenience types for results](#convenience-types-for-results)
+		- [Create Response Helper Functions](#create-response-helper-functions)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -111,6 +124,23 @@ commands will not be accessible.
     go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
 
+### Initialize your repository
+
+Whether you create the repository directly on your github or other account or
+not, you need to first initialise the go modules, from the root of your new
+repository, like this:
+
+    go mod init github.com/quanterall/kitchensink
+
+**IMPORTANT**
+
+**You need to change this and every other instance of
+`github.com/quanterall/kitchensink` found in the source code of this tutorial to
+match what you defined in your version of the above statement.**
+
+*If you don't upload this anywhere, you can just use what is defined here, and
+avoid this chore.*
+
 ## Step By Step:
 
 Click on the title of the step to see the state your repository should be in
@@ -193,13 +223,14 @@ message, as this is handled correctly by the implementing code it generates.
 
 The response uses a variant called `oneof` in protobuf. This is not native to
 Go, and for which reason we will be showing a small fix we add to the generated
-code package to account for this. In Go, returns are tuples,
-usually `result, error`, but in other languages like Rust and C++ they are
-encoded as a "variant" which is a type of `union` type. The nearest equivalent
-in Go is an `interface` but interfaces can be anything. The union type was left
-out of Go because it breaks C's otherwise strict typing system
-(and yes, this has been one of the many ways in which C code has been exploited
-to break security, which is why Go lacks it).
+code package to account for this.
+
+In Go, returns are tuples, usually `result, error`, but in other languages like
+Rust and C++ they are encoded as a "variant" which is a type of `union` type.
+The nearest equivalent in Go is an `interface` but interfaces can be anything.
+The union type was left out of Go because it breaks C's otherwise strict typing
+system (and yes, this has been one of the many ways in which C code has been
+exploited to break security, which is why Go lacks it).
 
 #### The decode messages
 
@@ -269,6 +300,173 @@ between Go and protobuf formats for the defined messages.
 `based32_grpc.pb.go` provides the methods to use gRPC to implement the API as
 described in the `service` section of the `based32.proto` file.
 
+### [Step 3](steps/step3) Create the base types and interfaces
+
+#### Create the interface
+
+In this project we are creating an interface in part to demonstrate how to 
+use them. Being such a small library, it may not be necessary to do this, 
+but it is rare that you will be making such small packages in practise, so 
+we want to show you how to work with interfaces.
+
+Create a new folder inside `pkg/` called `codecer`. The name comes from the 
+convention in Go to name interfaces by what they do. A codec is an 
+encoder/decoder, so a thing that defines a codec interface is a `codecer`.
+
+In `pkg/codecer` create a file `interface.go` and put this in it:
+
+```go
+// Package codecer is the interface definition for a Human Readable Binary
+// Transcription Codec
+
+package codecer
+
+// Codecer is the externally usable interface which provides a check for
+// complete implementation as well as illustrating the use of interfaces in Go.
+type Codecer interface {
+
+	// Encode takes an arbitrary length byte input and returns the output as
+	// defined for the codec.
+	Encode(input []byte) (output string, err error)
+
+	// Decode takes an encoded string and returns if the encoding is valid and
+	// the value passes any check function defined for the type.
+	//
+	// If the check fails or the input is too short to have a check, false and
+	// nil is returned. This is the contract for this method that
+	// implementations should uphold.
+	Decode(input string) (output []byte, err error)
+}
+```
+
+Note that in the comments we are specifying some things about the contract 
+that this interface should uphold. This is a good practise to help users of 
+your libraries know what to expect, and so you don't create or inspire 
+someone to create an 'undefined behaviour' that could become a security vulnerability.
+
+#### The concrete type
+
+In the root of the repository, create a new file called `types.go`. This is
+where we will define the main types that will be used by packages and
+applications that use our code.
+
+#### Package header
+
+```go
+package codec
+```
+
+#### Import Alias
+
+We are using the name codec, even though in our repository this is
+`kitchensink` but for your work for the tutorial you will call your package,
+presumably, `codec`. This is not mandatory but it is idiomatic to match the name
+of a package and the folder it lives in.
+
+Go will expect the name defined in this line to refer to this package, so it is
+confusing to see the export ending with a different word. In such cases it is
+common to explicitly use a renaming prefix in the import (an alias that is found
+just before the import path in an import block or statement).
+
+```go
+import (
+    "github.com/quanterall/kitchensink/pkg/codecer"
+)
+```
+
+#### Defining a generalised type framework
+
+This is a configuration data structure that bundles configuration and 
+implementation functions together. The function types defined are able to be 
+changed by calling code, which we use to create an initialiser in the main 
+`based32` package a little later.
+
+```go
+// Codec is the collection of elements that creates a Human Readable Binary
+// Transcription Codec
+type Codec struct {
+    
+    // Name is the human readable name given to this encoder
+    Name string
+    
+    // HRP is the Human Readable Prefix to be appended in front of the encoding
+    // to disambiguate it from another encoding or as a network or protocol
+    // identifier. This can be empty, but more usually this will be used to
+    // disambiguate versus other similarly encoded values, such as used on a
+    // different cryptocurrency network, or between main and test networks.
+    HRP string
+    
+    // Charset is the set of characters that the encoder uses. This should match
+    // the output encoder, 32 for using base32, 64 for base64, etc.
+    //
+    // For arbitrary bases, see the following function in the standard library:
+    // https://cs.opensource.google/go/go/+/refs/tags/go1.17.7:src/strconv/itoa.go;l=25
+    // This function can render up to base36, but by default uses 0-9a-z in its
+    // representation, which would either need to be string substituted for
+    // non-performance-critical uses or the function above forked to provide a
+    // direct encoding to the intended characters used for the encoding, using
+    // this charset string as the key. The sequence matters, each character
+    // represents the cipher for a given value to be found at a given place in
+    // the encoded number.
+    Charset string
+    
+    // Encode takes an arbitrary length byte input and returns the output as
+    // defined for the codec
+    Encoder func (input []byte) (output string, err error)
+    
+    // Decode takes an encoded string and returns if the encoding is valid and
+    // the value passes any check function defined for the type.
+    Decoder func (input string) (output []byte, err error)
+    
+    // AddCheck is used by Encode to add extra bytes for the checksum to ensure
+    // correct input so user does not send to a wrong address by mistake, for
+    // example.
+    MakeCheck func (input []byte, checkLen int) (output []byte)
+    
+    // Check returns whether the check is valid
+    Check func (input []byte) (err error)
+}
+```
+
+#### Interface Implementation Assertion
+
+The following var line makes it so the compiler will throw an error if the 
+interface is not implemented.
+
+```go
+// The following implementations are here to ensure this type implements the
+// interface. In this tutorial/example we are creating a kind of generic
+// implementation through the use of closures loaded into a struct.
+
+// This ensures the interface is satisfied for codecer.Codecer and is removed in
+// the generated binary because the underscore indicates the value is discarded.
+var _ codecer.Codecer = &Codec{}
+```
+
+#### Interface implementation using an embedded function
+
+The type defined in the previous section provides for a changeable function 
+for encode and decode. These are used here to automatically satisfy the 
+interface defined in the previous section
+
+```go
+// Encode implements the codecer.Codecer.Encode by calling the provided
+// function, and allows the concrete Codec type to always satisfy the interface,
+// while allowing it to be implemented entirely differently.
+//
+// Note: short functions like this can be one-liners according to gofmt.
+func (c Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
+
+// Decode implements the codecer.Codecer.Decode by calling the provided
+// function, and allows the concrete Codec type to always satisfy the interface,
+// while allowing it to be implemented entirely differently.
+//
+// Note: this also can be a one liner. Since we name the return values in the
+// type definition and interface, omitting them here makes the line short enough
+// to be a one liner.
+func (c Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }
+```
+
 #### Making the output code more useful with some extensions
 
 There is two minor gotchas that current versions of the go plugins for protoc to
@@ -292,9 +490,26 @@ returns a string, and that fmt.Print* functions consider this to be a variant of
 the Stringer even though it's not part of this interface.
 
 Fortunately, the generated code does create the string versions for you, just it
-does not make access to them idiomatic. We are teaching you idiomatic Go 
-here, so this is necessary to account for the inconsistency of the API of 
-the generated code.
+does not make access to them idiomatic. We are teaching you idiomatic Go here,
+so this is necessary to account for the inconsistency of the API of the
+generated code.
+
+#### Documentation comments in Go
+
+First, take note that comments above the package line should start "Package
+packagename..." and these lines will appear in
+[https://pkg.go.dev/](https://pkg.go.dev/)
+when you publish them on one of the numerous well known git hosting services, and a
+user searches for them by their URL in the search bar at the top of that
+page. This is referred to as 'godoc' and these texts can be also seen by
+using commands with the `go` CLI application to print them to console or
+serve a local version of what will appear on the above page.
+
+Most IDEs for Go will nag you to put these in. The one above package is not
+so important but every exported symbol (starting with a capital letter) in
+your source code should have a comment starting with the symbol and
+explaining what it is. The symbol can be preceded by an article, A or The if
+it makes more sense to write it that way.
 
 ```go
 // Package proto is the protocol buffers specification and generated code
@@ -303,9 +518,29 @@ the generated code.
 // The extra `error.go` file provides helpers and missing elements from the
 // generated code that make programming the protocol simpler.
 package proto
+````
 
+#### go:generate line
+
+This is a convenient location to place the generator that processes the
+`*.proto` files. It can be put anywhere but this makes it more concise.
+
+In Goland IDE this can be invoked directly from the editor.
+
+```go
+// The following line generates the protocol, it assumes that `protoc` is in the
+// path. This directive is run when `go generate` is run in the current package,
+// or if a wildcard was used ( go generate ./... ).
+//go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./based32.proto
+```
+
+Note the import alias here is present to explicitly refer to its' name as set in
+the package line at the top of the file. You need to change this URL to match
+the URL of your package name.
+
+```go
 import (
-	transcribe "github.com/quanterall/kitchensink"
+    codec "github.com/quanterall/kitchensink"
 )
 
 // Error implements the Error interface which allows this error to automatically
@@ -322,59 +557,103 @@ import (
 // usage, and with this tiny additional helper, very easy to return, and print.
 func (x Error) Error() string {
 
-	return Error_name[int32(x)]
-}
-
-// CreateEncodeResponse is a helper to turn a transcribe.EncodeRes into an
-// EncodeResponse to be returned to a gRPC client.
-func CreateEncodeResponse(res transcribe.EncodeRes) (response *EncodeResponse) {
-
-	// First, create the response structure.
-	response = &EncodeResponse{}
-
-	// Because the protobuf struct is essentially a Variant, a structure that
-	// does not exist in Go, there is an implicit contract that if there is an
-	// error, there is no return value. This is not implicit in Go's tuple
-	// returns.
-	//
-	// Thus, if there is an error, we return that, otherwise, the value in the
-	// response.
-
-	if res.Error != nil {
-		response.Encoded = &EncodeResponse_Error{
-			Error(Error_value[res.Error.Error()]),
-		}
-	} else {
-		response.Encoded =
-			&EncodeResponse_EncodedString{
-				res.String,
-			}
-	}
-	return
-}
-
-// CreateDecodeResponse is a helper to turn a transcribe.DecodeRes into an
-// DecodeResponse to be returned to a gRPC client.
-func CreateDecodeResponse(res transcribe.DecodeRes) (response *DecodeResponse) {
-
-	// First, create the response structure.
-	response = &DecodeResponse{}
-
-	// Return an error if there is an error, otherwise return the response data.
-	if res.Error != nil {
-		response.Decoded = &DecodeResponse_Error{
-			Error(Error_value[res.Error.Error()]),
-		}
-	} else {
-		response.Decoded = &DecodeResponse_Data{res.Bytes}
-	}
-	return
+    return Error_name[int32(x)]
 }
 
 ```
 
-The error stringer saves duplicating effort in creating error return values for
-the programmer and user to read, and the `Create*Response` methods eliminate
-duplication in correctly translating the tuple into the variant form via the Go
-interface syntax.
+#### Convenience types for results
 
+The following types will be used elsewhere, as well as for the following 
+create response functions. These are primarily to accommodate for the fact 
+that protobuf follows c++ conventions with eth use of 'oneof' variant types, 
+which don't exist in Go.
+
+```go
+// EncodeRes makes a more convenient return type for the results
+type EncodeRes struct {
+    String string
+    Error  error
+}
+
+// DecodeRes makes a more convenient return type for the results
+type DecodeRes struct {
+    Bytes []byte
+    Error error
+}
+```
+
+#### Create Response Helper Functions
+
+The following functions create convenient functions to return the result or 
+the error correctly for creating the correct data structure for the gRPC 
+response messages. 
+
+It is idiomatic for protobuf to use these variant types (union of one of 
+several types) as protobuf was originally designed for C++ and other 
+languages, such as Rust and Java also use variants, but Go does not, as this 
+is redundant complexity. 
+
+It does mean that Go code that cooperates with 
+these variant using languages and conventions is more complicated, so we 
+make these helpers. These probably could be generated automatically but 
+currently aren't. Common conventions are not necessarily based on the best 
+interests of compiler writers, as this case exemplifies the underlying 
+complexity that variants impose on the compiler unnecessarily.
+
+It is not mandatory, as a Go programmer, for you to obey these conventions, 
+they are here in this protobuf specification because you will encounter it a 
+lot. For the good of your fellow programmers, create return types with 
+result and error. There is cases where it makes sense to return a result AND 
+an error, where such an error is not fatal, and the variant return 
+convention ignores this, and makes more complexity for programmers, and 
+compiler writers.
+
+```go
+
+// CreateEncodeResponse is a helper to turn a codec.EncodeRes into an
+// EncodeResponse to be returned to a gRPC client.
+func CreateEncodeResponse(res EncodeRes) (response *EncodeResponse) {
+    
+    // First, create the response structure.
+    response = &EncodeResponse{}
+    
+    // Because the protobuf struct is essentially a Variant, a structure that
+    // does not exist in Go, there is an implicit contract that if there is an
+    // error, there is no return value. This is not implicit in Go's tuple
+    // returns.
+    //
+    // Thus, if there is an error, we return that, otherwise, the value in the
+    // response.
+    if res.Error != nil {
+        response.Encoded = 
+            &EncodeResponse_Error{
+                Error(Error_value[res.Error.Error()]),
+            }       
+    } else {
+        response.Encoded = 
+            &EncodeResponse_EncodedString{
+                res.String,
+            }
+    }
+    return
+}
+
+// CreateDecodeResponse is a helper to turn a codec.DecodeRes into an
+// DecodeResponse to be returned to a gRPC client.
+func CreateDecodeResponse(res DecodeRes) (response *DecodeResponse) {
+    
+    // First, create the response structure.
+    response = &DecodeResponse{}
+    
+    // Return an error if there is an error, otherwise return the response data.
+    if res.Error != nil {
+        response.Decoded = &DecodeResponse_Error{
+            Error(Error_value[res.Error.Error()]),
+        }
+    } else {
+        response.Decoded = &DecodeResponse_Data{res.Bytes}
+    }
+    return
+}
+```
