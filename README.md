@@ -18,13 +18,14 @@
 		- [Create the interface](#create-the-interface)
 		- [The concrete type](#the-concrete-type)
 		- [Package header](#package-header)
-		- [Import Alias](#import-alias)
 		- [Defining a generalised type framework](#defining-a-generalised-type-framework)
 		- [Interface Implementation Assertion](#interface-implementation-assertion)
 		- [Interface implementation using an embedded function](#interface-implementation-using-an-embedded-function)
 		- [Making the output code more useful with some extensions](#making-the-output-code-more-useful-with-some-extensions)
 		- [Documentation comments in Go](#documentation-comments-in-go)
 		- [go:generate line](#gogenerate-line)
+		- [Import Alias](#import-alias)
+		- [Adding a Stringer for the generated Error type](#adding-a-stringer-for-the-generated-error-type)
 		- [Convenience types for results](#convenience-types-for-results)
 		- [Create Response Helper Functions](#create-response-helper-functions)
 
@@ -354,21 +355,7 @@ applications that use our code.
 
 ```go
 package codec
-```
 
-#### Import Alias
-
-We are using the name codec, even though in our repository this is
-`kitchensink` but for your work for the tutorial you will call your package,
-presumably, `codec`. This is not mandatory but it is idiomatic to match the name
-of a package and the folder it lives in.
-
-Go will expect the name defined in this line to refer to this package, so it is
-confusing to see the export ending with a different word. In such cases it is
-common to explicitly use a renaming prefix in the import (an alias that is found
-just before the import path in an import block or statement).
-
-```go
 import (
     "github.com/quanterall/kitchensink/pkg/codecer"
 )
@@ -533,16 +520,49 @@ In Goland IDE this can be invoked directly from the editor.
 // or if a wildcard was used ( go generate ./... ).
 //go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./based32.proto
 ```
+#### Import Alias
 
 Note the import alias here is present to explicitly refer to its' name as set in
 the package line at the top of the file. You need to change this URL to match
 the URL of your package name.
 
+We are using the name codec, even though in our repository this is
+`kitchensink` but for your work for the tutorial you will call your package,
+presumably, `codec`. This is not mandatory but it is idiomatic to match the name
+of a package and the folder it lives in.
+
+Go will expect the name defined in this line to refer to this package, so it is
+confusing to see the export ending with a different word. In such cases it is
+common to explicitly use a renaming prefix in the import (an alias that is found
+just before the import path in an import block or statement). This is why we 
+have it here, even though in the `types.go` file it has `package codec`
+
 ```go
 import (
     codec "github.com/quanterall/kitchensink"
 )
+```
 
+#### Adding a Stringer for the generated Error type
+
+The protobuf compiler creates a type Error to match the one defined in our 
+proto file, but, it does not automatically generate the stringer for it. 
+Normal types would just have a `String() string` function for this, but 
+error types have a special different 'stringer' called `Error() string`. 
+This makes it possible to return this Error type as an error, but at the 
+same time easily print the text defined in the proto file.
+
+Yes, just defining this function does the both things in one, because any 
+type with a method with the signature `Error() string` becomes an 
+implementation of the `error` interface (yes, lower case, it is built in). I 
+am not sure when this came into force, some time around 1.13 version or so.
+
+The Go protobuf plugins don't make any assumptions just because you call the 
+enumeration type "Error" that it means it should be an `error` type, so we 
+have to explicitly tell it this here, which makes consuming code much more 
+readable and understandable.
+
+```go
 // Error implements the Error interface which allows this error to automatically
 // generate from the error code.
 //
