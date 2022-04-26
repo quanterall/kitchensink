@@ -280,9 +280,21 @@ generate our RPC API that we are going to show a workaround for
   cases for variant using languages like Rust and C++ to conform with
   *their* static type breaking variant types.
 
-Create a new file called `error.go` in the `pkg/proto` directory. This file 
-will become part of the `proto` package and in here we can directly access 
-internally defined parts of the generated code if needed.
+Create a new file called `error.go` in the `pkg/proto` directory. This file will
+become part of the `proto` package and in here we can directly access internally
+defined parts of the generated code if needed.
+
+This is necessary to define the `Error() string` method on the error type, which
+is missing from the generated code. This method is the equivalent of
+`String() string` method which is called the 'Stringer interface' but
+unfortunately gets a different name that doesn't actually tell you it just
+returns a string, and that fmt.Print* functions consider this to be a variant of
+the Stringer even though it's not part of this interface.
+
+Fortunately, the generated code does create the string versions for you, just it
+does not make access to them idiomatic. We are teaching you idiomatic Go 
+here, so this is necessary to account for the inconsistency of the API of 
+the generated code.
 
 ```go
 // Package proto is the protocol buffers specification and generated code
@@ -361,14 +373,8 @@ func CreateDecodeResponse(res transcribe.DecodeRes) (response *DecodeResponse) {
 
 ```
 
-Note that the above code is not strictly necessary but has to be manually
-handled later on one way or another, so we put this in now because there is no
-reason for the learner to have to learn the details of why this should be, it
-should have been fixed and will probably, hopefully be fixed in the go plugins
-for protobuf in the future.
-
-The error stringer saves duplicating effort in creating error return values 
-for the programmer and user to read, and the `Create*Response` methods 
-eliminate duplication in correctly translating the tuple into the variant 
-form via the Go interface syntax.
+The error stringer saves duplicating effort in creating error return values for
+the programmer and user to read, and the `Create*Response` methods eliminate
+duplication in correctly translating the tuple into the variant form via the Go
+interface syntax.
 
