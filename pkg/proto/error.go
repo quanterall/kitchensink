@@ -1,7 +1,8 @@
 // Package proto is the protocol buffers specification and generated code
 // package for based32
 //
-// The
+// The extra `error.go` file provides helpers and missing elements from the
+// generated code that make programming the protocol simpler.
 package proto
 
 import (

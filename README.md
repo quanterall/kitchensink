@@ -6,8 +6,14 @@
 	- [Install Protobuf Compiler](#install-protobuf-compiler)
 	- [Install gRPC plugins for Go](#install-grpc-plugins-for-go)
 - [Step By Step:](#step-by-step)
-	- [Step 1](#step-1)
-- [Step 2](#step-2)
+	- [Step 1 Create the Protobuf specification](#step-1-create-the-protobuf-specification)
+		- [The header section](#the-header-section)
+		- [The service definition](#the-service-definition)
+		- [The encode messages](#the-encode-messages)
+		- [The decode messages](#the-decode-messages)
+		- [The errors](#the-errors)
+	- [Step 2 Complete the creation of the protobuf implementations](#step-2-complete-the-creation-of-the-protobuf-implementations)
+		- [Making the output code more useful with some extensions](#making-the-output-code-more-useful-with-some-extensions)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -107,12 +113,10 @@ commands will not be accessible.
 
 ## Step By Step:
 
-In each case, if you click on the title of the step, it will take you to the 
-step folder where the final state of the repository for each step can be 
-seen in case the tutorial has been unclear where or what you were supposed 
-to end up at, at that point.
+Click on the title of the step to see the state your repository should be in
+when you have completed the step.
 
-### [Step 1](steps/step1)
+### [Step 1](steps/step1) Create the Protobuf specification
 
 First thing you do when working with gRPC is define the protocol messages.
 
@@ -126,7 +130,7 @@ unlicence unless I am forking code with other licences.
 Inside `pkg` create a new directory `proto` and create a new
 file `based32.proto`
 
-First part of the protobuf file is the header section:
+#### The header section
 
 ```protobuf
 syntax = "proto3";
@@ -143,7 +147,7 @@ Third is the line that actually does things for the Go version. The path is the
 same as what appears in the `import` line where this package is being imported
 from, and should be the same as the repository root, plus `pkg/proto`.
 
-Next, the service definition:
+#### The service definition
 
 ```protobuf
 service Transcriber {
@@ -163,10 +167,10 @@ the built in goroutine spawning default handler.
 This is important because although for relatively small scale applications it
 can be ok to let Go manage spawning and freeing goroutines, for a serious large
 scale or high performance API, you should be keeping the goroutines warm and
-delivering them jobs with channels, as we will be in this tutorial. Teaching 
+delivering them jobs with channels, as we will be in this tutorial. Teaching
 concurrency is one of the goals of this tutorial.
 
-Next, the encode messages:
+#### The encode messages
 
 ```protobuf
 message EncodeRequest {
@@ -181,24 +185,23 @@ message EncodeResponse {
 }
 ```
 
-The request is very simple, it just uses bytes. Note that although in many 
-cases for such data in Go, it will be fixed length, such as 32 byte long 
-keys, hashes, and 65 byte long signatures, protobuf does not have a notion 
-of fixed length bytes. It is not necessary to add a field to designate the 
-length of the message, as this is handled correctly by the implementing code 
-it generates.
+The request is very simple, it just uses bytes. Note that although in many cases
+for such data in Go, it will be fixed length, such as 32 byte long keys, hashes,
+and 65 byte long signatures, protobuf does not have a notion of fixed length
+bytes. It is not necessary to add a field to designate the length of the
+message, as this is handled correctly by the implementing code it generates.
 
-The response uses a variant called `oneof` in protobuf. This is not native 
-to Go, and for which reason we will be showing a small fix we add to the 
-generated code package to account for this. In Go, returns are tuples, 
-usually `result, error`, but in other languages like Rust and C++ they are 
-encoded as a "variant" which is a type of `union` type. The nearest 
-equivalent in Go is an `interface` but interfaces can be anything. The union 
-type was left out of Go because it breaks C's otherwise strict typing system 
-(and yes, this has been one of the many ways in which C code has been 
-exploited to break security, which is why Go lacks it).
+The response uses a variant called `oneof` in protobuf. This is not native to
+Go, and for which reason we will be showing a small fix we add to the generated
+code package to account for this. In Go, returns are tuples,
+usually `result, error`, but in other languages like Rust and C++ they are
+encoded as a "variant" which is a type of `union` type. The nearest equivalent
+in Go is an `interface` but interfaces can be anything. The union type was left
+out of Go because it breaks C's otherwise strict typing system
+(and yes, this has been one of the many ways in which C code has been exploited
+to break security, which is why Go lacks it).
 
-Next, the decode messages:
+#### The decode messages
 
 ```protobuf
 
@@ -214,8 +217,10 @@ message DecodeResponse {
 }
 ```
 
-They are exactly the same, except the types are reversed, encode is bytes to 
+They are exactly the same, except the types are reversed, encode is bytes to
 string, decode is string to bytes, reversing the process.
+
+#### The errors
 
 ```protobuf
 enum Error {
@@ -228,5 +233,138 @@ enum Error {
 
 ```
 
-## [Step 2](steps/step2)
+We want to define all possible errors within the context of the protobuf
+specification, and make them informative enough that their text can be used to
+inform the programmer, or user, what error has occurred, without having to add
+further annotations.
+
+The above shows all of the possible errors that can occur, notably `NIL_SLICE`
+is a purely programmer error, that would be when calling encode with nil instead
+of a byte slice `[]byte`. In a real project you would probably have to add these
+as you go along, but we will skip that for now, and this is part of the reason
+why the tutorial uses such a simple application.
+
+### [Step 2](steps/step2) Complete the creation of the protobuf implementations
+
+To run the protobuf compiler and generate the code, from the root of the
+repository you run the following command:
+
+    protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./pkg/proto/based32.proto
+
+`--go_out` is essential for when generating Go versions of the protobuf handler
+code. Without this, the remaining options are not understood.
+
+This will change your repository files to look like this:
+
+    .
+    └── pkg
+        └── proto
+            ├── based32.pb.go
+            ├── based32.proto
+            └── based32_grpc.pb.go
+
+`based32.pb.go` provides the necessary methods to encode and decode the data
+between Go and protobuf formats for the defined messages.
+
+`based32_grpc.pb.go` provides the methods to use gRPC to implement the API as
+described in the `service` section of the `based32.proto` file.
+
+#### Making the output code more useful with some extensions
+
+There is two minor gotchas that current versions of the go plugins for protoc to
+generate our RPC API that we are going to show a workaround for
+
+- A stringer for the error types,
+- code that transforms the result types for the calls from the `result, error`
+  idiom to the variant syntax as shown in the protocol and necessary in many
+  cases for variant using languages like Rust and C++ to conform with
+  *their* static type breaking variant type.1
+
+```go
+// Package proto is the protocol buffers specification and generated code
+// package for based32
+//
+// The extra `error.go` file provides helpers and missing elements from the
+// generated code that make programming the protocol simpler.
+package proto
+
+import (
+	transcribe "github.com/quanterall/kitchensink"
+)
+
+// Error implements the Error interface which allows this error to automatically
+// generate from the error code.
+//
+// Fixes a bug in the generated code, which not
+// only lacks the Error method it uses int32 for the error string map when it
+// should be using the defined Error type. No easy way to report the bug in the
+// code.
+//
+// With this method implemented, one can simply return the error map code
+// protos.Error_ERROR_NAME_HERE and logs print this upper case snake case which
+// means it can be written to be informative in the proto file and concise in
+// usage, and with this tiny additional helper, very easy to return, and print.
+func (x Error) Error() string {
+
+	return Error_name[int32(x)]
+}
+
+// CreateEncodeResponse is a helper to turn a transcribe.EncodeRes into an
+// EncodeResponse to be returned to a gRPC client.
+func CreateEncodeResponse(res transcribe.EncodeRes) (response *EncodeResponse) {
+
+	// First, create the response structure.
+	response = &EncodeResponse{}
+
+	// Because the protobuf struct is essentially a Variant, a structure that
+	// does not exist in Go, there is an implicit contract that if there is an
+	// error, there is no return value. This is not implicit in Go's tuple
+	// returns.
+	//
+	// Thus, if there is an error, we return that, otherwise, the value in the
+	// response.
+
+	if res.Error != nil {
+		response.Encoded = &EncodeResponse_Error{
+			Error(Error_value[res.Error.Error()]),
+		}
+	} else {
+		response.Encoded =
+			&EncodeResponse_EncodedString{
+				res.String,
+			}
+	}
+	return
+}
+
+// CreateDecodeResponse is a helper to turn a transcribe.DecodeRes into an
+// DecodeResponse to be returned to a gRPC client.
+func CreateDecodeResponse(res transcribe.DecodeRes) (response *DecodeResponse) {
+
+	// First, create the response structure.
+	response = &DecodeResponse{}
+
+	// Return an error if there is an error, otherwise return the response data.
+	if res.Error != nil {
+		response.Decoded = &DecodeResponse_Error{
+			Error(Error_value[res.Error.Error()]),
+		}
+	} else {
+		response.Decoded = &DecodeResponse_Data{res.Bytes}
+	}
+	return
+}
+
+```
+
+Note that the above code is not strictly necessary but has to be manually
+handled later on one way or another, so we put this in now because there is no
+reason for the learner to have to learn the details of why this should be, it
+should have been fixed and will probably, hopefully be fixed in the go plugins
+for protobuf in the future.
+
+The error stringer saves duplicating effort in creating error return values 
+for the programmer and user to read, and the `Create*Response` methods 
+eliminate duplication in correctly translating the tuple into the variant 
+form via the Go interface syntax.
 
