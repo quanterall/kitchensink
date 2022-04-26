@@ -1,5 +1,5 @@
 syntax = "proto3";
-package codec;
+package proto;
 option go_package = "github.com/quanterall/kitchensink/service/proto";
 
 service Transcriber {

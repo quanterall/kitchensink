@@ -134,7 +134,7 @@ file `based32.proto`
 
 ```protobuf
 syntax = "proto3";
-package codec;
+package proto;
 option go_package = "github.com/quanterall/kitchensink/pkg/proto";
 ```
 
