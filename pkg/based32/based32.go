@@ -249,15 +249,19 @@ func makeCodec(
 			)
 
 			err = proto.Error_INCORRECT_HUMAN_READABLE_PART
-
 			return
 		}
 
 		// Cut the HRP off the beginning to get the content, add the initial
-		// zeroed 5 bytes with a 'q' character.
+		// zeroed 5 bits with a 'q' character.
+		//
+		// Be aware the input string will be copied to create the []byte
+		// version. Also, because the input bytes are always zero for the first
+		// 5 most significant bits, we must re-add the zero at the front (q)
+		// before feeding it to the decoder.
 		input = "q" + input[len(cdc.HRP):]
 
-		// The length of the base32 string refers to 5 bytes per slice index
+		// The length of the base32 string refers to 5 bits per slice index
 		// position, so the correct size of the output bytes, which are 8 bytes
 		// per slice index position, is found with the following simple integer
 		// math calculation.
@@ -277,10 +281,6 @@ func makeCodec(
 		// []byte{} so this panic message is deceptive.
 		data := make([]byte, len(input)*5/8)
 
-		// Be aware the input string will be copied to create the []byte
-		// version. Also, because the input bytes are always zero for the first
-		// 5 most significant bits, we must re-add the zero at the front (q)
-		// before feeding it to the decoder.
 		var writtenBytes int
 		writtenBytes, err = enc.Decode(data, []byte(input))
 		if err != nil {
@@ -294,9 +294,7 @@ func makeCodec(
 		if writtenBytes < checkLen+1 {
 
 			err = proto.Error_CHECK_TOO_SHORT
-
 			return
-
 		}
 
 		// Assigning the result of the check here as if true the resulting

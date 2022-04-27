@@ -38,6 +38,7 @@
 		- [Calculating the check length](#calculating-the-check-length)
 		- [Writing the Encoder Implementation](#writing-the-encoder-implementation)
 		- [Creating the Check function](#creating-the-check-function)
+		- [Creating the Decoder function](#creating-the-decoder-function)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -822,6 +823,8 @@ func makeCodec(
 
 You will notice that we took care to make sure that everything you will paste into your editor will pass syntax checks immediately. All functions that have return values must contain a `return` statement. The return value here is imported from `types.go` at the root of the repository, which the compiler identifies as `github.com/quanterall/kitchensink` because of running `go mod init` in [Initialize your repository](#initialize-your-repository) .
 
+Also note it explicitly 
+
 > When you first start writing code, you will probably get quite irritated at having to put in those empty returns and put in the imports. This is just how things are with Go. The compiler is extremely strict about identifiers, all must be known, and a function with return value without a return is also wrong. 
 >
 > A decent Go IDE will save you time by adding and removing the `import` lines for you automatically if it knows them, but you are responsible for putting the returns in there. Note that you can put a `panic()` statement instead of `return`, the tooling in Goland, for example, when you generate an implementation for a type from an interface, puts `panic` calls in there to remind you to fill in your implementation.
@@ -1134,6 +1137,95 @@ The following function assumes that the decoding from Base32 to bytes has alread
 			err = proto.Error_CHECK_FAILED
 		}
 
+		return
+	}
+```
+
+Take note about the use of the string cast above. In Go, slices do not have an equality operator `==` but strings do. Casting bytes to string creates an immutable copy so it adds a copy operation. If the amount of data is very large, you write a custom comparison function to avoid this duplication, but for short amounts of data, the extra copy stays on the stack and does not take a lot of time, in return for the simplified comparison as shown above.
+
+#### Creating the Decoder function
+
+The decoder cuts off the HRP, prepends the always zero first base32 character, decodes using the Base32 encoder (it is created prior to the encode function previously, and is actually a codec, though I used the name `enc`, it also has a decode function)
+
+```go
+	cdc.Decoder = func(input string) (output []byte, err error) {
+
+		// Other than for human identification, the HRP is also a validity
+		// check, so if the string prefix is wrong, the entire value is wrong
+		// and won't decode as it is expected.
+		if !strings.HasPrefix(input, cdc.HRP) {
+
+			log.Printf("Provided string has incorrect human readable part:"+
+				"found '%s' expected '%s'", input[:len(cdc.HRP)], cdc.HRP,
+			)
+
+			err = proto.Error_INCORRECT_HUMAN_READABLE_PART
+
+			return
+		}
+
+		// Cut the HRP off the beginning to get the content, add the initial
+		// zeroed 5 bytes with a 'q' character.
+		// Be aware the input string will be copied to create the []byte
+		// version. Also, because the input bytes are always zero for the first
+		// 5 most significant bits, we must re-add the zero at the front (q)
+		// before feeding it to the decoder.
+        input = "q" + input[len(cdc.HRP):]
+
+		// The length of the base32 string refers to 5 bytes per slice index
+		// position, so the correct size of the output bytes, which are 8 bytes
+		// per slice index position, is found with the following simple integer
+		// math calculation.
+		//
+		// This allocation needs to be made first as the base32 Decode function
+		// does not do this allocation automatically and it would be wasteful to
+		// not compute it precisely, when the calculation is so simple.
+		//
+		// If this allocation is omitted, the decoder will panic due to bounds
+		// check error. A nil slice is equivalent to a zero length slice and
+		// gives a bounds check error, but in fact, the slice has no data at
+		// all. Yes, the panic message is lies:
+		//
+		//   panic: runtime error: index out of range [4] with length 0
+		//
+		// If this assignment isn't made, by default, output is nil, not
+		// []byte{} so this panic message is deceptive.
+		data := make([]byte, len(input)*5/8)
+
+		var writtenBytes int
+		writtenBytes, err = enc.Decode(data, []byte(input))
+		if err != nil {
+
+			log.Println(err)
+			return
+		}
+
+		// The first byte signifies the length of the check at the end
+		checkLen := int(data[0])
+		if writtenBytes < checkLen+1 {
+
+			err = proto.Error_CHECK_TOO_SHORT
+
+			return
+
+		}
+
+		// Assigning the result of the check here as if true the resulting
+		// decoded bytes still need to be trimmed of the check value (keeping
+		// things cleanly separated between the check and decode function.
+		err = cdc.Check(data)
+
+		// There is no point in doing any more if the check fails, as per the
+		// contract specified in the interface definition codecer.Codecer
+		if err != nil {
+			return
+		}
+
+		// Slice off the check length prefix, and the check bytes to return the
+		// valid input bytes.
+		output = data[1:getCutPoint(len(data)+1, checkLen)]
+
+		// If we got to here, the decode was successful.
 		return
 	}
 ```
