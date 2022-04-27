@@ -198,12 +198,7 @@ func makeCodec(
 		// Ensure there is at enough bytes in the input to run a check on
 		if len(input) < checkLen+1 {
 
-			// In general, Println is nicer to use, but makes ugly default
-			// formatting of values added in the log print, for which case
-			// Printf should be used (applies also to non-log fmt.Print
-			// functions).
 			err = proto.Error_CHECK_TOO_SHORT
-
 			return
 		}
 

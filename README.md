@@ -33,6 +33,11 @@
 		- [Helper functions](#helper-functions)
 		- [Log at the site](#log-at-the-site)
 		- [Create an Initialiser](#create-an-initialiser)
+		- [Writing the check function](#writing-the-check-function)
+		- [Creating the Encoder](#creating-the-encoder)
+		- [Calculating the check length](#calculating-the-check-length)
+		- [Writing the Encoder Implementation](#writing-the-encoder-implementation)
+		- [Creating the Check function](#creating-the-check-function)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -905,5 +910,231 @@ Note that the returns can be left 'naked' like this because the variables are de
 >
 > (Of course, long source files are a bad thing, as equally as many that are too small... it is something that should be relatively intuitive since we all have brains that work much the same way.)
 
+#### Writing the check function
 
+The first thing we need for the codec is the check function. The check makes a checksum value. We additionally add the requirement that the check serves double duty as a pad to fill out the Base32 strings, which otherwise get ugly padding characters, usually `=` in the case of standard Go base32 library. Thus, the check function also includes a length parameter.
+
+```go
+	// We need to create the check creation functions first
+	cdc.MakeCheck = func(input []byte, checkLen int) (output []byte) {
+
+		// We use the Blake3 256 bit hash because it is nearly as fast as CRC32
+		// but less complicated to use due to the 32 bit integer conversions to
+		// bytes required to use the CRC32 algorithm.
+		checkArray := blake3.Sum256(input)
+
+		// This truncates the blake3 hash to the prescribed check length
+		return checkArray[:checkLen]
+	}
+```
+
+It is possible to instead use the shorter, and simpler `crc32` checksum function, but we don't like it because it requires converting bytes to 32 bit integers and back again, which is done in practise like this:
+
+```go
+example := []byte{1, 2, 3, 4}
+asInteger := uint32(example[0]) + 
+	(uint32(example[1]) << 8) +
+	(uint32(example[2]) << 16) +
+	(uint32(example[3]) << 24) 
+
+```
+
+for little-endian, the ordering of the left shift (which means multiply by 2 to the power of the number of bits, which is done by bit shifting, left shift 1 bit means double) is reversed for big-endian, which you still encounter sometimes, such as in the encoding of 32 byte long hashes and 65-68 byte long signatures in Bitcoin blocks.
+
+> You may not have been aware of this, but the modern arabic base 10 numbers are also written right to left as is the arabic convention. This also makes it annoying to write indentation algorithms for numbers as well. 
+>
+> The 'big' refers to the fact that by memory addresses, the almost complete majority of microchips encode the bytes and words with the same convention as we use for our base 10 numbers, ie, first bit is on the right, last bit is on the left, and then you move the counter for the next byte/word in the opposite direction. 
+>
+> Maybe one day common sense will prevail and the bits will be ordered sequentially and not have reversals for every 8, 16, 32 or 64 byte chunks, it would make it a lot simpler to think about since we number the bytes forward, and each word is backwards...
+
+If you follow the logic of that conversion, you can see that it is 4 copy operations, 3 bit shifts and 3 addition operations. The hash function does not do this conversion, it operates directly on bytes (in fact, I think it uses 8 byte/64 bit words, and coerces the byte slices to 64 bit long words using an unsafe type conversion) using a sponge function, and Blake3 is the fastest hash function with cryptographic security, which means a low rate of collisions, which in terms of checksums equates to two strings creating the same checksum, and breaking some degree of security of the function. So, we use blake3 hashes and cut them to our custom length.
+
+The length is variable as we are designing this algorithm to combine padding together with the check. So, essentially the way it works is we take the modulus (remainder of the division) of the length of the data, and pad it out to the next biggest multiple of 5 bytes, which is 8 base32 symbols. The formula for this comes next.
+
+#### Creating the Encoder
+
+In all cases, when creating a codec, the first step is making the encoder. It is impossible to decode something that doesn't yet exist, the encoder is *a priori*, that is, it comes first, both logically and temporally.
+
+But before we can make the encoder, we also need a function to compute the correct check length for the payload data. 
+
+Further, the necessity of a variable length requires also that the length of the check be known before decoding, so this becomes a prefix of the encoding.
+
+#### Calculating the check length
+
+So, first thing to add is a helper function, which we recommend you put *before* the `makeCodec` function:
+
+```go
+func getCheckLen(length int) (checkLen int) {
+
+	// The following formula ensures that there is at least 1 check byte, up to
+	// 4, in order to create a variable length theck that serves also to pad to
+	// 5 bytes per 8 5 byte characters (2^5 = 32 for base 32)
+	//
+	// we add two to the length before modulus, as there must be 1 byte for
+	// check length and 1 byte of check
+	lengthMod := (2 + length) % 5
+
+	// The modulus is subtracted from 5 to produce the complement required to
+	// make the correct number of bytes of total data, plus 1 to account for the
+	// minimum length of 1.
+	checkLen = 5 - lengthMod + 1
+
+	return checkLen
+}
+```
+
+The function takes the input of the length of our message in bytes, and returns the correct length. The result is that for an equal multiple of 5 bytes, we add 5 bytes of check, and 4, 3, 2 or 1 bytes for each of the variations that are more than this multiple, plus accounting for the extra byte to store the check length.
+
+> The check length byte in fact only uses the first 3 bits, as it can be no more than 5, which requires 3 bits of encoding. Keep this in mind for later as we use this to abbreviate the codes as implicitly their largest 5 bits must be zero, which is precisely one base32 character in length, thus it always prefixes with a `q` as described by the character set we are using for this, based on the Bech32 standard used by Bitcoin and Cosmos, which reduces the length of the encoded value by one character, and must be added back to correctly decode.
+
+#### Writing the Encoder Implementation
+
+The standard library contains a set of functions to encode and decode base 32 numbers using custom character sets. The 32 characters defined in the initialiser defined earlier, are chosen for their distinctiveness
+
+```go
+	// Create a base32.Encoding from the provided charset.
+	enc := base32.NewEncoding(cdc.Charset)
+
+	cdc.Encoder = func(input []byte) (output string, err error) {
+
+		if len(input) < 1 {
+
+			err = proto.Error_ZERO_LENGTH
+			return
+		}
+
+		// The check length depends on the modulus of the length of the data is
+		// order to avoid padding.
+		checkLen := getCheckLen(len(input))
+
+		// The output is longer than the input, so we create a new buffer.
+		outputBytes := make([]byte, len(input)+checkLen+1)
+
+		// Add the check length byte to the front
+		outputBytes[0] = byte(checkLen)
+
+		// Then copy the input bytes for beginning segment.
+		copy(outputBytes[1:len(input)+1], input)
+
+		// Then copy the check to the end of the input.
+		copy(outputBytes[len(input)+1:], cdc.MakeCheck(input, checkLen))
+
+		// Create the encoding for the output.
+		outputString := enc.EncodeToString(outputBytes)
+
+		// We can omit the first character of the encoding because the length
+		// prefix never uses the first 5 bits of the first byte, and add it back
+		// for the decoder later.
+		trimmedString := outputString[1:]
+
+		// Prefix the output with the Human Readable Part and append the
+		// encoded string version of the provided bytes.
+		output = cdc.HRP + trimmedString
+
+		return
+	}
+```
+
+The comments explain every step in the process. 
+
+> **The syntax for slices and copying requires some explanation.**
+>
+> In Go, to copy slices (variable types with the `[]` prefix) you use the `copy` operator, the assignment operator `=` copies the *value* of the slice, which is actually a struct, internally, containing the pointer to the memory, the current length used and the capacity (which can be larger than current used), which would not achieve the goal of creating a new, expanded version including the check length prefix and check/padding.
+>
+> The other point to note is the use of the slicing operator. Individual elements are addressed via `variableName[n]` and to designate a subsection of the slice you use `variableName[start:end]` where the values represent the first element and the element *after* the last element.
+>
+> It is important to explain this as the notation can be otherwise confusing. The end index in particular needs to be understood as *exclusive* not *inclusive*. The length function `len(sliceName)` returns a value that is the same as the index that you would use to designate *up to the end* of the slice, as it is the cardinal value (count) where the ordinal (index) starts from zero and is thus one less.
+>
+> Lastly, the slicing operator can also be used on strings, but beware that the indexes are bytes, and do not respect the character boundaries of UTF-8 encoding, which is only one byte per character for the first 255 characters of ASCII and does not include any (many, it does include several umlauts and accent characters from european languages) non-latin symbols. 
+>
+> However, in the case of the Base32 encoding, we are using standard ASCII symbols so we know that we can cut off the first one to remove the redundant zero that appears because of the maximum 3 bits used for the check length prefix value, leave 5 bits in front (due to the backwards encoding convention for numbers within machine words). 
+>
+> *whew* A lot to explain about the algorithm above, but vital to understand for anyone who wants to work with slices of bytes in Go, which basically means anything involving binary encoding. This will be as deeply technical as this tutorial gets, it's not essential to understand it to do the tutorial, but this explanation is added for the benefit of those who do or will need to work with binary encoded data.
+
+#### Creating the Check function
+
+Continuing in the promised logical, first principles ordering of things, the next thing we need is the Check function. 
+
+The check function essentially prepares the input string correctly, removing the Human Readable Prefix string, appends the prefix zero that is cut off due to always being zero, decodes it from Base32 into bytes, slices off the check length prefix byte, separates the data from the check bytes, then it runs the `MakeCheck` function to make sure the check bytes match what was provided. 
+
+If the match fails, the check is incorrect or the data is corrupt. In this case, incorrectly transcribed.
+
+First thing we need to run the check function is a function that calculates the index the check byte starts at:
+
+```go
+// getCutPoint is made into a function because it is needed more than once.
+func getCutPoint(length, checkLen int) int {
+
+	return length - checkLen - 1
+}
+```
+
+This is a very simple formula, but it needs to be used again in the decoder function where it allows the raw bytes to be correctly cut to return the checked value.
+
+The following function assumes that the decoding from Base32 to bytes has already been done correctly, but nothing more:
+
+```go
+	cdc.Check = func(input []byte) (err error) {
+
+		// We must do this check or the next statement will cause a bounds check
+		// panic. Note that zero length and nil slices are different, but have
+		// the same effect in this case, so both must be checked.
+		switch {
+		case len(input) < 1:
+
+			err = proto.Error_ZERO_LENGTH
+			return
+
+		case input == nil:
+
+			err = proto.Error_NIL_SLICE
+			return
+		}
+
+		// The check length is encoded into the first byte in order to ensure
+		// the data is cut correctly to perform the integrity check.
+		checkLen := int(input[0])
+
+		// Ensure there is at enough bytes in the input to run a check on
+		if len(input) < checkLen+1 {
+
+			err = proto.Error_CHECK_TOO_SHORT
+			return
+		}
+
+		// Find the index to cut the input to find the checksum value. We need
+		// this same value twice so it must be made into a variable.
+		cutPoint := getCutPoint(len(input), checkLen)
+
+		// Here is an example of a multiple assignment and more use of the
+		// slicing operator.
+		payload, checksum := input[1:cutPoint], string(input[cutPoint:])
+
+		// A checksum is checked in all cases by taking the data received, and
+		// applying the checksum generation function, and then comparing the
+		// checksum to the one attached to the received data with checksum
+		// present.
+		//
+		// Note: The casting to string above and here. This makes a copy to the
+		// immutable string, which is not optimal for large byte slices, but for
+		// this short check value, it is a cheap operation on the stack, and an
+		// illustration of the interchangeability of []byte and string, with the
+		// distinction of the availability of a comparison operator for the
+		// string that isn't present for []byte, so for such cases this
+		// conversion is a shortcut method to compare byte slices.
+		computedChecksum := string(cdc.MakeCheck(payload, checkLen))
+
+		// Here we assign to the return variable the result of the comparison.
+		// by doing this instead of using an if and returns, the meaning of the
+		// comparison is more clear by the use of the return value's name.
+		valid := checksum != computedChecksum
+
+		if !valid {
+
+			err = proto.Error_CHECK_FAILED
+		}
+
+		return
+	}
+```
 
