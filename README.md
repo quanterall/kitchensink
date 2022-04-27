@@ -815,9 +815,9 @@ func makeCodec(
 }
 ```
 
-You will notice that we took care to make sure that everything you will paste into your editor will pass syntax checks immediately. All functions that have return values must contain a `return` statement. The return value here is imported from `types.go` at the root of the repository, which the compiler identifies as `github.com/quanterall/kitchensink` because of running `go mod init` in [Initialize your repository](#initialize-your-repository) .
+You will notice that we took care to make sure that everything you will paste into your editor will pass syntax checks immediately. All functions that have return values must contain a `return` statement. 
 
-Also note it explicitly 
+The return value here is imported from `types.go` at the root of the repository, which the compiler identifies as `github.com/quanterall/kitchensink` because of running `go mod init` in [Initialize your repository](#initialize-your-repository) .
 
 > When you first start writing code, you will probably get quite irritated at having to put in those empty returns and put in the imports. This is just how things are with Go. The compiler is extremely strict about identifiers, all must be known, and a function with return value without a return is also wrong. 
 >
@@ -944,9 +944,9 @@ for little-endian, the ordering of the left shift (which means multiply by 2 to 
 >
 > Maybe one day common sense will prevail and the bits will be ordered sequentially and not have reversals for every 8, 16, 32 or 64 byte chunks, it would make it a lot simpler to think about since we number the bytes forward, and each word is backwards...
 
-If you follow the logic of that conversion, you can see that it is 4 copy operations, 3 bit shifts and 3 addition operations. The hash function does not do this conversion, it operates directly on bytes (in fact, I think it uses 8 byte/64 bit words, and coerces the byte slices to 64 bit long words using an unsafe type conversion) using a sponge function, and Blake3 is the fastest hash function with cryptographic security, which means a low rate of collisions, which in terms of checksums equates to two strings creating the same checksum, and breaking some degree of security of the function. So, we use blake3 hashes and cut them to our custom length.
+If you follow the logic of that conversion, you can see that it is 4 copy operations (copy 8 bit value to 32 bit *zero* value), 3 bit shifts and 3 addition operations. The hash function does not do this conversion, it operates directly on bytes (in fact, I think it uses 8 byte/64 bit words, and coerces the byte slices to 64 bit long words using an unsafe type conversion) using a sponge function, and Blake3 is the fastest hash function with cryptographic security, which means a low rate of collisions, which in terms of checksums equates to two strings creating the same checksum, and breaking some degree of security of the function. So, we use blake3 hashes and cut them to our custom length.
 
-The length is variable as we are designing this algorithm to combine padding together with the check. So, essentially the way it works is we take the modulus (remainder of the division) of the length of the data, and pad it out to the next biggest multiple of 5 bytes, which is 8 base32 symbols. The formula for this comes next.
+The length is variable as we are designing this algorithm to combine padding together with the check. So, essentially the way it works is we take the modulus of 5 (remainder of the division) of the length of the data, and pad it out to the next biggest multiple of 5 bytes, which is 8 base32 symbols. The formula for this comes next.
 
 #### Creating the Encoder
 
@@ -1044,6 +1044,8 @@ The comments explain every step in the process.
 >
 > Lastly, the slicing operator can also be used on strings, but beware that the indexes are bytes, and do not respect the character boundaries of UTF-8 encoding, which is only one byte per character for the first 255 characters of ASCII and does not include any (many, it does include several umlauts and accent characters from european languages) non-latin symbols. 
 >
+> If you need to do UTF-8 text processing you need to use iterator functions that detect the variable length characters and convert them to 32 bit values. We don't need that here because we are using pure ASCII 8 bit characters, to be exact, 7 bits with a zero bit pad.
+>
 > However, in the case of the Base32 encoding, we are using standard ASCII symbols so we know that we can cut off the first one to remove the redundant zero that appears because of the maximum 3 bits used for the check length prefix value, leave 5 bits in front (due to the backwards encoding convention for numbers within machine words). 
 >
 > *whew* A lot to explain about the algorithm above, but vital to understand for anyone who wants to work with slices of bytes in Go, which basically means anything involving binary encoding. This will be as deeply technical as this tutorial gets, it's not essential to understand it to do the tutorial, but this explanation is added for the benefit of those who do or will need to work with binary encoded data.
@@ -1135,7 +1137,9 @@ The following function assumes that the decoding from Base32 to bytes has alread
 	}
 ```
 
-Take note about the use of the string cast above. In Go, slices do not have an equality operator `==` but strings do. Casting bytes to string creates an immutable copy so it adds a copy operation. If the amount of data is very large, you write a custom comparison function to avoid this duplication, but for short amounts of data, the extra copy stays on the stack and does not take a lot of time, in return for the simplified comparison as shown above.
+Take note about the use of the string cast above. In Go, slices do not have an equality operator `==` but and arrays (fixed length with a constant length value like this `[32]byte` as opposed to `[]byte` for the slice) and strings do. 
+
+Casting bytes to string creates an immutable copy so it adds a copy operation. If the amount of data is very large, you write a custom comparison function to avoid this duplication, but for short amounts of data, the extra copy stays on the stack and does not take a lot of time, in return for the simplified comparison as shown above.
 
 #### Creating the Decoder function
 
