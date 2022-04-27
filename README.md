@@ -817,11 +817,14 @@ func makeCodec(
 
 You will notice that we took care to make sure that everything you will paste into your editor will pass syntax checks immediately. All functions that have return values must contain a `return` statement. The return value here is imported from `types.go` at the root of the repository, which the compiler identifies as `github.com/quanterall/kitchensink` because of running `go mod init` in [Initialize your repository](#initialize-your-repository) .
 
-When you first start writing code, you will probably get quite irritated at having to put in those empty returns and put in the imports. This is just how things are with Go. The compiler is extremely strict about identifiers, all must be known, and a function with return value without a return is also wrong. A decent Go IDE will save you time by adding and removing the `import` lines for you automatically if it knows them, but you are responsible for putting the returns in there. Note that you can put a `panic()` statement instead of `return`, the tooling in Goland, for example, when you generate an implementation for a type from an interface, puts `panic` calls in there to remind you to fill in your implementation.
+> When you first start writing code, you will probably get quite irritated at having to put in those empty returns and put in the imports. This is just how things are with Go. The compiler is extremely strict about identifiers, all must be known, and a function with return value without a return is also wrong. 
+>
+> A decent Go IDE will save you time by adding and removing the `import` lines for you automatically if it knows them, but you are responsible for putting the returns in there. Note that you can put a `panic()` statement instead of `return`, the tooling in Goland, for example, when you generate an implementation for a type from an interface, puts `panic` calls in there to remind you to fill in your implementation.
+>
+> I will just plug Goland a little further, the reason why I recommend it is because it has the best hyperlink system available for any IDE on the market, and as I mentioned a little way back, tracing errors back to their source is one of the most time consuming parts of the work of a programmer, every little bit helps, and Jetbrains clearly listen to their users regarding this - even interfaces are easy to trace back to multiple implementations, again saving a lot of time when you are working on large codebases.
+>
 
-I will just plug Goland a little further, the reason why I recommend it is because it has the best hyperlink system available for any IDE on the market, and as I mentioned a little way back, tracing errors back to their source is one of the most time consuming parts of the work of a programmer, every little bit helps, and Jetbrains clearly listen to their users regarding this - even interfaces are easy to trace back to multiple implementations, again saving a lot of time when you are working on large codebases.
-
-Before we start to show you how to put things into the `Codec` we first will just refresh your memory with a compact version of the structure that it defines:
+Before we start to show you how to put things into the `Codec` we first will just refresh your memory with a compact version of the structure that it defines:
 
 ```go
 type Codec struct {
@@ -866,7 +869,7 @@ var Codec = makeCodec(
 
 as you can now see, fills in these predefined configuration values for our codec.
 
-In fact, the Name field is not used anywhere, but in an application that can work with multiple codec.Codec implementations, this could become quite useful to differentiate between them.
+In fact, the Name field is not used anywhere, but in an application that can work with multiple codec.Codec implementations, this could become quite useful to differentiate between them. It also functions as something in between documentation and code for the reader.
 
 Stub in the closures for the codec:
 
@@ -888,11 +891,19 @@ Stub in the closures for the codec:
 	}
 ```
 
-Again, we like to teach good, time saving, and error saving practices for programming. Making stubs for things that you know you eventually have to fill in is a good practise for this purpose. 
+Again, we like to teach good, time saving, and error saving practices for programming. Making stubs for things that you know you eventually have to fill in is a good practice for this purpose. 
 
 Note that the returns can be left 'naked' like this because the variables are declared in the type signature of the closure. If you leave out the names and only have the list of types of the return tuples, you have to also make the declarations of the variables, or fill in empty versions, which for `[]` types means `nil` for `error` also `nil` and for `string` the empty type is `""`. 
 
-There is something of an unofficial convention amongst Go programmers to not name return variables, it is the opinion of the author that this is a bad thing for readability, as the variable names can give information about what the values actually represent. In this case here they are named simply as they are quite unambiguous given the functions names, however, sometimes it can be very helpful to save the reader the time of scanning through the function to know what a return value relates to.
+> There is something of an unofficial convention amongst Go programmers to not name return variables, it is the opinion of the author that this is a bad thing for readability, as the variable names can give information about what the values actually represent. In this case here they are named simply as they are quite unambiguous given the functions names, however, sometimes it can be very helpful to save the reader the time of scanning through the function to know what a return value relates to. 
+>
+> Further, the variables are likely to be declared somewhere arbitrarily through the text, or in a given if block or other error handling area filled in manually. Using predeclared names saves space, makes the function header the one stop shop to learn everything and saves time for everyone who has to deal with the code.
+>
+> Naked returns also get a bad rap for no good reason also. Unless the function spans more than a screenful, and you don't name the return values, it is redundant and noisy to repeat things when they are clear.
+>
+> Further, as a general comment, everything that happens at the root level of a Go source file exists all at once, there is no formal ordering to it except where variables are created, these are populated in the order they are shown prior to running `init()` functions and prior to invoking `main()` - In spite of the lack of syntactic requirement for strict ordering, it just doesn't make any sense to refer forwards to objects when humans read from top to bottom and thus you are then requiring the human to scan back and forth, a task that becomes a huge time waster the longer the source code gets. 
+>
+> (Of course, long source files are a bad thing, as equally as many that are too small... it is something that should be relatively intuitive since we all have brains that work much the same way.)
 
 
 
