@@ -1,4 +1,4 @@
-module github.com/quanterall/kitchensink/steps/step3
+module github.com/quanterall/kitchensink/steps/step4
 
 go 1.18
 

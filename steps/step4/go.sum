@@ -46,8 +46,6 @@ github.com/google/uuid v1.1.2/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
-github.com/quanterall/kitchensink v0.0.0-20220426113520-bcdfb47661ce h1:Wj4CfRBvoxeXW6eJsxE7ivNJUrGopIInPt007h2B620=
-github.com/quanterall/kitchensink v0.0.0-20220426113520-bcdfb47661ce/go.mod h1:X2eXt4Ny529q5AZIaKeX7p6tFdr4OxUKJCcRYQ86RGs=
 github.com/quanterall/kitchensink v0.0.0-20220426120150-4a59688929c1 h1:zdE1Rgh1yB18EeB+UnhMojpKo9WqZOHTBYQ6qxyPDhc=
 github.com/quanterall/kitchensink v0.0.0-20220426120150-4a59688929c1/go.mod h1:X2eXt4Ny529q5AZIaKeX7p6tFdr4OxUKJCcRYQ86RGs=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=

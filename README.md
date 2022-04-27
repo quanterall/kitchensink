@@ -28,6 +28,10 @@
 		- [Adding a Stringer for the generated Error type](#adding-a-stringer-for-the-generated-error-type)
 		- [Convenience types for results](#convenience-types-for-results)
 		- [Create Response Helper Functions](#create-response-helper-functions)
+	- [Step 4 The Encoder](#step-4-the-encoder)
+		- [Always write code to be extensible](#always-write-code-to-be-extensible)
+		- [Helper functions](#helper-functions)
+		- [Log at the site](#log-at-the-site)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -147,6 +151,8 @@ avoid this chore.*
 Click on the title of the step to see the state your repository should be in
 when you have completed the step.
 
+----
+
 ### [Step 1](steps/step1) Create the Protobuf specification
 
 First thing you do when working with gRPC is define the protocol messages.
@@ -238,7 +244,13 @@ exploited to break security, which is why Go lacks it).
 ```protobuf
 
 message DecodeRequest{
-  string EncodedString = 1;
+  string EncodedString = 1;es any check function defined for the type.
+	//
+	// If the check fails or the input is too short to have a check, false and
+	// nil is returned. This is the contract for this method that
+	// implementations should uphold.
+	Decode(input string) (output []byte, err error)
+}
 }
 
 message DecodeResponse {
@@ -276,6 +288,8 @@ of a byte slice `[]byte`. In a real project you would probably have to add these
 as you go along, but we will skip that for now, and this is part of the reason
 why the tutorial uses such a simple application.
 
+----
+
 ### [Step 2](steps/step2) Complete the creation of the protobuf implementations
 
 To run the protobuf compiler and generate the code, from the root of the
@@ -300,6 +314,8 @@ between Go and protobuf formats for the defined messages.
 
 `based32_grpc.pb.go` provides the methods to use gRPC to implement the API as
 described in the `service` section of the `based32.proto` file.
+
+----
 
 ### [Step 3](steps/step3) Create the base types and interfaces
 
@@ -421,10 +437,6 @@ The following var line makes it so the compiler will throw an error if the
 interface is not implemented.
 
 ```go
-// The following implementations are here to ensure this type implements the
-// interface. In this tutorial/example we are creating a kind of generic
-// implementation through the use of closures loaded into a struct.
-
 // This ensures the interface is satisfied for codecer.Codecer and is removed in
 // the generated binary because the underscore indicates the value is discarded.
 var _ codecer.Codecer = &Codec{}
@@ -443,7 +455,7 @@ More often you will create methods that refer to the pointer to the type because
 they will be struct types and methods that call on a non pointer method copy the
 struct, which may not have the desired result as this will result in concurrent
 copies of values that are not the same variable, and are discarded at the end of
-this method's execution.
+this method's execution, potentially consuming a lot of memory and time moving that memory around.
 
 When the type is a potentially shared or structured (struct or `[]`) type, the
 copy will waste time copying the value, or referring to a common version in the
@@ -616,7 +628,7 @@ func (x Error) Error() string {
 
 The following types will be used elsewhere, as well as for the following create
 response functions. These are primarily to accommodate for the fact that
-protobuf follows c++ conventions with eth use of 'oneof' variant types, which
+protobuf follows c++ conventions with the use of 'oneof' variant types, which
 don't exist in Go.
 
 ```go
@@ -659,7 +671,6 @@ an error is not fatal, and the variant return convention ignores this, and makes
 more complexity for programmers, and compiler writers.
 
 ```go
-
 // CreateEncodeResponse is a helper to turn a codec.EncodeRes into an
 // EncodeResponse to be returned to a gRPC client.
 func CreateEncodeResponse(res EncodeRes) (response *EncodeResponse) {
@@ -706,3 +717,61 @@ func CreateDecodeResponse(res DecodeRes) (response *DecodeResponse) {
     return
 }
 ```
+
+----
+
+### [Step 4](steps/step4) The Encoder
+
+Next step is the actual library that the protobufs and interface and types were all created for.
+
+#### Always write code to be extensible
+
+While when making new libraries you will change the types and protocols a lot as you work through the implementation, it is still the best pattern to start with defining at least protocols and making a minimal placeholder for the implementation.
+
+It is possible to create a library that does not have any significant state or configuration that just consists of methods that do things, which can be created without a `struct` tying them together, this is rare, and usually only happens when there is only one or two functions required. 
+
+For this we have 4 functions and while we could hard code everything with constants and non-exported variables where constants can't be used, this is not extensible. Even in only one year of full time work programming, I estimate that I spent about 20% of my first year working as a Go developer, fixing up quick and dirty written code that was not designed to be extended. 
+
+The time cost of preparing a codebase to be extensible and modular is tiny in comparison, maybe an extra half an hour as you start on a library. Experience says that the shortcut is not worth it. You never know when you are the one who has to extend your own code later on, and two days later it's finally in a state you can add functionality.
+
+#### Helper functions
+
+The only exception to this is when there is literally only one or at most two functions to deal with a specific type of data. These are often referred to as "helpers" or "convenience functions" and do not need to be extensible as they are very small and self contained.
+
+These functions can sometimes be tricky to know where to put them, and often end up in collections under package names with terrible names like "util" or "tools" or "helpers". This can be problematic because very often they are accessory to another type, and doing this creates confusing crosslinks that can lead you into a circular dependency.
+
+As such, my advice is to keep helpers where they are used, and don't export them, unless they are necessary, like the response helper functions we made previously for the `proto` package.
+
+#### Log at the site
+
+No code ever starts out perfect. In most cases every last bit has to be debugged at some point. As such, one of the most important things you can do to save yourself time and irritation is to make it easier to trace bugs.
+
+For this reason, the first thing we are going to add is a customised logger for our package.
+
+In the `pkg/` folder, create a new folder `based32`which will be the name of our human readable encoding library.
+
+In this folder, create a file `log.go`:
+
+```go
+package based32
+
+import (
+	logg "log"
+	"os"
+)
+
+var log = logg.New(os.Stderr, "based32 ", logg.Llongfile)
+```
+
+What we are doing here is using the standard logging library to set up a customised configuration. The standard logger only drops the timestamp with the log entries, which is rarely a useful feature, and when it is, the time precision is too low on the default configuration, as the most frequent time one needs accurate timestamps is when the time of events is in the milli- or microseconds when debugging concurrent high performance low latency code.
+
+This log variable essentially replaces an import in the rest of the package for the `log` standard library, and configures it to print full file paths and label them also with the name of the package.
+
+It is ok to leave one level of indirection in the site of logging errors, that is, the library will return an error but not log, but it should at least log where the error returns, so that when the problem comes up, you only have to trace back to the call site and not several layers above this.
+
+When you further have layers of indirection like interfaces and copies of pointers to objects that are causing errors, knowing which place to look for the bug will take up as much time as actually fixing it.
+
+It may be that you are never writing algorithms that need any real debugging, many "programmers" rarely have to do much debugging. But we don't want to churn out script writers only, we want to make sure that everyone has at least been introduced to the idea of debugging. 
+
+For that reason also, now that we are implementing an algorithm here, we are going to deliberately cause bugs and force the student to encounter the process of debugging, show the way to fix them, and not just make this an exercise in copy and paste, for which there will be no benefit as bugs are the way you learn to write good code, without that difficulty, it is not programing, and you will forget the next day how you did it, which makes this whole exercise a waste of time that you could have saved yourself keystrokes and just read it instead.
+
