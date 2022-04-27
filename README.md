@@ -32,6 +32,7 @@
 		- [Always write code to be extensible](#always-write-code-to-be-extensible)
 		- [Helper functions](#helper-functions)
 		- [Log at the site](#log-at-the-site)
+		- [Create an Initialiser](#create-an-initialiser)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -774,4 +775,124 @@ When you further have layers of indirection like interfaces and copies of pointe
 It may be that you are never writing algorithms that need any real debugging, many "programmers" rarely have to do much debugging. But we don't want to churn out script writers only, we want to make sure that everyone has at least been introduced to the idea of debugging. 
 
 For that reason also, now that we are implementing an algorithm here, we are going to deliberately cause bugs and force the student to encounter the process of debugging, show the way to fix them, and not just make this an exercise in copy and paste, for which there will be no benefit as bugs are the way you learn to write good code, without that difficulty, it is not programing, and you will forget the next day how you did it, which makes this whole exercise a waste of time that you could have saved yourself keystrokes and just read it instead.
+
+#### Create an Initialiser
+
+The purpose for the transparency of the `Codec` type in `types.go` was so that we could potentially create a custom codec in a separate package than where the type was defined. 
+
+While we could have avoided this openness and created a custom function to load the non-exported struct members, and potentially in a more complex library, we would, for a simple library like this, we are going to assume that users of the library are either not going to tamper with it when its being used concurrently, or that they have created a custom implementation for their own encoder design or won't be using it concurrently.
+
+So, the first things we are going to do is sketch out the creation of an initialiser, in which we will use closures to load the structure with functionality.
+
+```go
+// Package based32 provides a simplified variant of the standard
+// Bech32 human readable binary codec
+package based32
+
+import (
+    codec "github.com/quanterall/kitchensink"
+)
+
+// charset is the set of characters used in the data section of bech32 strings.
+const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
+// Codec provides the encoder/decoder implementation created by makeCodec.
+var Codec = makeCodec(
+	"Base32Check",
+	charset,
+	"QNTRL",
+)
+
+// makeCodec generates our custom codec as above, into the exported Codec
+// variable
+func makeCodec(
+	name string,
+	cs string,
+	hrp string,
+) (cdc *codec.Codec) {
+    
+    return cdc
+}
+```
+
+You will notice that we took care to make sure that everything you will paste into your editor will pass syntax checks immediately. All functions that have return values must contain a `return` statement. The return value here is imported from `types.go` at the root of the repository, which the compiler identifies as `github.com/quanterall/kitchensink` because of running `go mod init` in [Initialize your repository](#initialize-your-repository) .
+
+When you first start writing code, you will probably get quite irritated at having to put in those empty returns and put in the imports. This is just how things are with Go. The compiler is extremely strict about identifiers, all must be known, and a function with return value without a return is also wrong. A decent Go IDE will save you time by adding and removing the `import` lines for you automatically if it knows them, but you are responsible for putting the returns in there. Note that you can put a `panic()` statement instead of `return`, the tooling in Goland, for example, when you generate an implementation for a type from an interface, puts `panic` calls in there to remind you to fill in your implementation.
+
+I will just plug Goland a little further, the reason why I recommend it is because it has the best hyperlink system available for any IDE on the market, and as I mentioned a little way back, tracing errors back to their source is one of the most time consuming parts of the work of a programmer, every little bit helps, and Jetbrains clearly listen to their users regarding this - even interfaces are easy to trace back to multiple implementations, again saving a lot of time when you are working on large codebases.
+
+Before we start to show you how to put things into the `Codec` we first will just refresh your memory with a compact version of the structure that it defines:
+
+```go
+type Codec struct {
+	Name string
+	HRP string
+	Charset string
+	Encoder func(input []byte) (output string, err error)
+	Decoder func(input string) (output []byte, err error)
+	MakeCheck func(input []byte, checkLen int) (output []byte)
+	Check func(input []byte) (err error)
+}
+```
+
+HRP and Charset are configuration values, and Encoder, Decoder, MakeCheck and Check are functions.
+
+The configuration part is simple to define, so add this to `makeCodec` :
+
+```go
+	// Create the codec.Codec struct and put its pointer in the return variable.
+	cdc = &codec.Codec{
+		Name:    name,
+		Charset: cs,
+		HRP:     hrp,
+	}
+```
+
+This section:
+
+```go
+
+// charset is the set of characters used in the data section of bech32 strings.
+const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
+// Codec provides the encoder/decoder implementation created by makeCodec.
+var Codec = makeCodec(
+	"Base32Check",
+	charset,
+	"QNTRL",
+)
+
+```
+
+as you can now see, fills in these predefined configuration values for our codec.
+
+In fact, the Name field is not used anywhere, but in an application that can work with multiple codec.Codec implementations, this could become quite useful to differentiate between them.
+
+Stub in the closures for the codec:
+
+```go
+	cdc.MakeCheck = func(input []byte, checkLen int) (output []byte) {
+   		return
+	}
+
+	cdc.Encoder = func(input []byte) (output string, err error) {
+    	return
+	}
+
+	cdc.Check = func(input []byte) (err error) {
+    	return
+	}
+
+	cdc.Decoder = func(input string) (output []byte, err error) {
+    	return
+	}
+```
+
+Again, we like to teach good, time saving, and error saving practices for programming. Making stubs for things that you know you eventually have to fill in is a good practise for this purpose. 
+
+Note that the returns can be left 'naked' like this because the variables are declared in the type signature of the closure. If you leave out the names and only have the list of types of the return tuples, you have to also make the declarations of the variables, or fill in empty versions, which for `[]` types means `nil` for `error` also `nil` and for `string` the empty type is `""`. 
+
+There is something of an unofficial convention amongst Go programmers to not name return variables, it is the opinion of the author that this is a bad thing for readability, as the variable names can give information about what the values actually represent. In this case here they are named simply as they are quite unambiguous given the functions names, however, sometimes it can be very helpful to save the reader the time of scanning through the function to know what a return value relates to.
+
+
 
