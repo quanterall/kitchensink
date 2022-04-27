@@ -252,12 +252,6 @@ exploited to break security, which is why Go lacks it).
 
 message DecodeRequest{
   string EncodedString = 1;es any check function defined for the type.
-	//
-	// If the check fails or the input is too short to have a check, false and
-	// nil is returned. This is the contract for this method that
-	// implementations should uphold.
-	Decode(input string) (output []byte, err error)
-}
 }
 
 message DecodeResponse {
@@ -992,7 +986,7 @@ The function takes the input of the length of our message in bytes, and returns 
 
 #### Writing the Encoder Implementation
 
-The standard library contains a set of functions to encode and decode base 32 numbers using custom character sets. The 32 characters defined in the initialiser defined earlier, are chosen for their distinctiveness
+The standard library contains a set of functions to encode and decode base 32 numbers using custom character sets. The 32 characters defined in the initialiser defined earlier, are chosen for their distinctiveness, it does not have I and 1, only small L (l), and only has zero (0) not capital O, as, unfortunately, in many fonts these can be hard to differentiate. Likewise for 2 and Z, and 5 and S.
 
 ```go
 	// Create a base32.Encoding from the provided charset.
@@ -1145,7 +1139,7 @@ Take note about the use of the string cast above. In Go, slices do not have an e
 
 #### Creating the Decoder function
 
-The decoder cuts off the HRP, prepends the always zero first base32 character, decodes using the Base32 encoder (it is created prior to the encode function previously, and is actually a codec, though I used the name `enc`, it also has a decode function)
+The decoder cuts off the HRP, prepends the always zero first base32 character, decodes using the Base32 encoder (it is created prior to the encode function previously, and is actually a codec, though I used the name `enc`, it also has a decode function).
 
 ```go
 	cdc.Decoder = func(input string) (output []byte, err error) {
@@ -1165,14 +1159,15 @@ The decoder cuts off the HRP, prepends the always zero first base32 character, d
 		}
 
 		// Cut the HRP off the beginning to get the content, add the initial
-		// zeroed 5 bytes with a 'q' character.
+		// zeroed 5 bits with a 'q' character.
+        //
 		// Be aware the input string will be copied to create the []byte
 		// version. Also, because the input bytes are always zero for the first
 		// 5 most significant bits, we must re-add the zero at the front (q)
 		// before feeding it to the decoder.
         input = "q" + input[len(cdc.HRP):]
 
-		// The length of the base32 string refers to 5 bytes per slice index
+		// The length of the base32 string refers to 5 bits per slice index
 		// position, so the correct size of the output bytes, which are 8 bytes
 		// per slice index position, is found with the following simple integer
 		// math calculation.
@@ -1207,7 +1202,6 @@ The decoder cuts off the HRP, prepends the always zero first base32 character, d
 			err = proto.Error_CHECK_TOO_SHORT
 
 			return
-
 		}
 
 		// Assigning the result of the check here as if true the resulting
@@ -1229,4 +1223,6 @@ The decoder cuts off the HRP, prepends the always zero first base32 character, d
 		return
 	}
 ```
+
+Note that in a couple of places there are log prints. This is because when developing this, it was critical to be able to see what exactly was incorrect, in tests where the result was wrong.
 
