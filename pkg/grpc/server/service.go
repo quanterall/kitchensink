@@ -16,7 +16,7 @@ type b32 struct {
 	proto.UnimplementedTranscriberServer
 	stop        chan struct{}
 	svr         *grpc.Server
-	transcriber *Transcriber
+	transcriber *transcriber
 	addr        *net.TCPAddr
 	roundRobin  atomic.Uint32
 	workers     uint32

@@ -7,9 +7,10 @@ import (
 	"sync"
 )
 
-// Transcriber is a multithreaded worker pool for performing transcription
-// encode and decode requests.
-type Transcriber struct {
+// transcriber is a multithreaded worker pool for performing transcription encode
+// and decode requests. It is not exported because it must be initialised
+// correctly.
+type transcriber struct {
 	stop                       chan struct{}
 	encode                     []chan *proto.EncodeRequest
 	decode                     []chan *proto.DecodeRequest
@@ -23,10 +24,10 @@ type Transcriber struct {
 // NewWorkerPool initialises the data structure required to run a worker pool.
 // Call Start to to initiate the run, and call the returned stop function to end
 // it.
-func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
+func NewWorkerPool(workers uint32, stop chan struct{}) *transcriber {
 
-	// Initialize a Transcriber worker pool
-	t := &Transcriber{
+	// Initialize a transcriber worker pool
+	t := &transcriber{
 		stop:         stop,
 		encode:       make([]chan *proto.EncodeRequest, workers),
 		decode:       make([]chan *proto.DecodeRequest, workers),
@@ -51,7 +52,7 @@ func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
 
 // handle the jobs, this is one thread of execution, and will run whatever job
 // has appeared and this thread
-func (t *Transcriber) handle(worker uint32) {
+func (t *transcriber) handle(worker uint32) {
 
 	t.wait.Add(1)
 out:
@@ -88,7 +89,7 @@ out:
 
 // logCallCounts prints the values stored in the encode and decode counter
 // atomic variables.
-func (t *Transcriber) logCallCounts() {
+func (t *transcriber) logCallCounts() {
 
 	log.Printf(
 		"processed %v encodes and %v encodes",
@@ -97,7 +98,7 @@ func (t *Transcriber) logCallCounts() {
 }
 
 // Start up the worker pool.
-func (t *Transcriber) Start() (cleanup func()) {
+func (t *transcriber) Start() (cleanup func()) {
 
 	// Spawn the number of workers configured.
 	for i := uint32(0); i < t.workers; i++ {

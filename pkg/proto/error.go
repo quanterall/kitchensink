@@ -29,14 +29,16 @@ func (x Error) Error() string {
 
 // EncodeRes makes a more convenient return type for the results
 type EncodeRes struct {
-	String string
-	Error  error
+	IdNonce uint64
+	String  string
+	Error   error
 }
 
 // DecodeRes makes a more convenient return type for the results
 type DecodeRes struct {
-	Bytes []byte
-	Error error
+	IdNonce uint64
+	Bytes   []byte
+	Error   error
 }
 
 // CreateEncodeResponse is a helper to turn a proto.EncodeRes into an
@@ -44,7 +46,7 @@ type DecodeRes struct {
 func CreateEncodeResponse(res EncodeRes) (response *EncodeResponse) {
 
 	// First, create the response structure.
-	response = &EncodeResponse{}
+	response = &EncodeResponse{IdNonce: res.IdNonce}
 
 	// Because the protobuf struct is essentially a Variant, a structure that
 	// does not exist in Go, there is an implicit contract that if there is an
@@ -72,7 +74,7 @@ func CreateEncodeResponse(res EncodeRes) (response *EncodeResponse) {
 func CreateDecodeResponse(res DecodeRes) (response *DecodeResponse) {
 
 	// First, create the response structure.
-	response = &DecodeResponse{}
+	response = &DecodeResponse{IdNonce: res.IdNonce}
 
 	// Return an error if there is an error, otherwise return the response data.
 	if res.Error != nil {
@@ -80,7 +82,7 @@ func CreateDecodeResponse(res DecodeRes) (response *DecodeResponse) {
 			Error(Error_value[res.Error.Error()]),
 		}
 	} else {
-		response.Decoded = &DecodeResponse_Data{res.Bytes}
+		response.Decoded = &DecodeResponse_Data{Data: res.Bytes}
 	}
 	return
 }

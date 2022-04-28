@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/quanterall/kitchensink v0.0.0-20220426120150-4a59688929c1
+	go.uber.org/atomic v1.9.0
 	google.golang.org/grpc v1.45.0
 	google.golang.org/protobuf v1.28.0
 	lukechampine.com/blake3 v1.1.7
