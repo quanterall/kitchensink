@@ -49,26 +49,6 @@ func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
 	return t
 }
 
-// Start up the worker pool.
-func (t *Transcriber) Start() (stop func()) {
-
-	// Spawn the number of workers configured.
-	for i := uint32(0); i < t.workers; i++ {
-
-		go t.handle(i)
-	}
-
-	return func() {
-
-		// Wait until all have stopped.
-		t.wait.Wait()
-
-		// Log the number of jobs that were done during the run.
-		t.logCallCounts()
-
-	}
-}
-
 // handle the jobs, this is one thread of execution, and will run whatever job
 // has appeared and this thread
 func (t *Transcriber) handle(worker uint32) {
@@ -110,7 +90,28 @@ out:
 // atomic variables.
 func (t *Transcriber) logCallCounts() {
 
-	log.Printf("processed %v encodes and %v encodes",
+	log.Printf(
+		"processed %v encodes and %v encodes",
 		t.encCallCount.Load(), t.decCallCount.Load(),
 	)
+}
+
+// Start up the worker pool.
+func (t *Transcriber) Start() (cleanup func()) {
+
+	// Spawn the number of workers configured.
+	for i := uint32(0); i < t.workers; i++ {
+
+		go t.handle(i)
+	}
+
+	return func() {
+
+		// Wait until all have stopped.
+		t.wait.Wait()
+
+		// Log the number of jobs that were done during the run.
+		t.logCallCounts()
+
+	}
 }

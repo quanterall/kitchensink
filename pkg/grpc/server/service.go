@@ -149,7 +149,7 @@ func New(addr *net.TCPAddr, workers uint32) (b *b32) {
 
 func (b *b32) Start() (stop func()) {
 
-	stopService := b.transcriber.Start()
+	cleanup := b.transcriber.Start()
 
 	// Set up a tcp listener for the gRPC service.
 	lis, err := net.ListenTCP("tcp", b.addr)
@@ -198,7 +198,7 @@ func (b *b32) Start() (stop func()) {
 				// This is the proper way to stop the gRPC server, which will
 				// end the next goroutine spawned just above correctly.
 				b.svr.GracefulStop()
-				stopService()
+				cleanup()
 				break out
 			}
 		}
