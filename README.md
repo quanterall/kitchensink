@@ -37,6 +37,7 @@
 		- [Creating the Encoder](#creating-the-encoder)
 		- [Calculating the check length](#calculating-the-check-length)
 		- [Writing the Encoder Implementation](#writing-the-encoder-implementation)
+		- [About `make`](#about-make)
 		- [Creating the Check function](#creating-the-check-function)
 		- [Creating the Decoder function](#creating-the-decoder-function)
 	- [Step 5 Testing the algorithm](#step-5-testing-the-algorithm)
@@ -51,6 +52,11 @@
 		- [Implementing the worker pool](#implementing-the-worker-pool)
 		- [About Channels](#about-channels)
 		- [About Waitgroups](#about-waitgroups)
+		- [Initialising the Worker Pool](#initialising-the-worker-pool)
+		- [Atomic Counters](#atomic-counters)
+		- [Running the Worker Pool](#running-the-worker-pool)
+		- [Logging the call counts](#logging-the-call-counts)
+		- [Starting the worker pool](#starting-the-worker-pool)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -1045,6 +1051,24 @@ The standard library contains a set of functions to encode and decode base 32 nu
 
 The comments explain every step in the process. 
 
+#### About `make`
+
+First, as this is the first point at which the builting function `make` appears, this is a function that initialises and populates the three main types of "reference types" (values that are actually pointers), slice (`[]T`), map (`map[K]V`) and channel (`chan T`). 
+
+All of these types have a top level "value" structure which contains pointers and state data such as the underlying memory location, length and capacity of slices, the number of members and the location of the index of maps, and the underlying structure that manages channels (more about these later).
+
+Overall, you will use and encounter slices the most. Slices can be populated with literals, creating the equivalent of 'constant' values, which are not actually constant in Go, as they involve pointers which are strictly not constant, for which reason they are not immutable. 
+
+Adding immutability creates an extra attribute for all variables which would mean on the underlying implementation, *everything* is then a "reference type" and every access requires an indirection to account for the hidden values like "mutable". In practise, this actually is a performance benefit because it eliminates compiler complexity and makes performance tuning more predictable for the programmer.
+
+Immutability was left out of Go because it can be mimicked using encapsulation and non-exported symbols. Go does not include anything that can be constructed from what is already available. All the things that you will miss from other languages, Go will show you just how expensive they are to implement and make you understand why Go does not have them for all purposes.
+
+The `make` function must be invoked before using any of these structured types otherwise the variable is `nil`.
+
+With slices, it is possible to invoke `make` without a length parameter, and you will be able to use the `append` function to add elements to the slice. 
+
+We will not show you `append` even once in this tutorial because actually, it's a bad idea to use it in production, as it costs memory allocations and very often, *heap* allocations, which are the most expensive. `make` also requires heap allocations, but we promote the idea of using it with length values for slices to put the allocation during initialisation rather than during the runtime, when this will create latency in the implementation, and is preferable to be done before loops as well, so only one allocation is done instead of potentially hundreds during an initialisation loop.
+
 > **The syntax for slices and copying requires some explanation.**
 >
 > In Go, to copy slices (variable types with the `[]` prefix) you use the `copy` operator, the assignment operator `=` copies the *value* of the slice, which is actually a struct, internally, containing the pointer to the memory, the current length used and the capacity (which can be larger than current used), which would not achieve the goal of creating a new, expanded version including the check length prefix and check/padding.
@@ -1796,7 +1820,7 @@ The queues can be zero length, or can have multiple buffers, which makes them fu
 
 We use the type `struct {}` which is an empty struct, because this is the smallest possible type of data it can be, it is zero bytes! So such a channel can only send simple signals, namely "something", which is actually nothing, it can be used like a momentary switch such as the power button on a computer, or the trigger on a gun, it simply sends a signal to do something to whatever it is connected to.
 
-So, such channels have to be single purpose. If you need to send only one signal to stop, you close the channel, if you want to use the channel to send multiple triggers, you send an empty struct value to it. You *could* distinguish between the two and recognise the `nil` separately in a the "trigger" channel mode, but it's just not worth it to combine the two and having a separate "quit" channel to "trigger" channels makes for easier reading, as every channel receive has to distinguish between `struct {}{}` and `nil` every time, which is a waste of time.
+So, such channels have to be single purpose. If you need to send only one signal to stop, you close the channel, if you want to use the channel to send multiple triggers, you send an empty struct value to it. You *could* distinguish between the two and recognise the `nil` separately in a the "trigger" channel mode, but it's just not worth it to combine the two and having a separate "quit" channel to "trigger" channels makes for easier reading, as every channel receive has to distinguish between `struct {}{}` and `nil` every time, which is a waste of time.
 
 For each API call we have a pair of channels created in this structure, one for the request, and one for the response. It is possible to embed the response in the requests as well, so the return channel is sent in the request, but this costs more in initiation and makes more sense for a lower frequency request service than the one we are making. The channel is already initialised before any requests are made, so the responses will return immediately and do not have to be initialised by the caller.
 
@@ -1805,4 +1829,160 @@ The last point, is that each of the 4 channels we have for our two API methods c
 #### About Waitgroups
 
 The last element of the struct is a `sync.Waitgroup`. This is an atomic counter which can be used to keep track of the number of threads that are running, and allows you to write code that holds things open until all of the wait group are `Done` when shutting down.
+
+#### Initialising the Worker Pool
+
+Now that we have given a brief (as possible) explanation of the elements of the worker pool, here is the initialiser:
+
+```go
+// NewWorkerPool initialises the data structure required to run a worker pool.
+// Call Start to to initiate the run, and call the returned stop function to end
+// it.
+func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
+
+	// Initialize a Transcriber worker pool
+	t := &Transcriber{
+		stop:         stop,
+		encode:       make([]chan *proto.EncodeRequest, workers),
+		decode:       make([]chan *proto.DecodeRequest, workers),
+		encodeRes:    make([]chan proto.EncodeRes, workers),
+		decodeRes:    make([]chan proto.DecodeRes, workers),
+		encCallCount: atomic.NewUint32(0),
+		decCallCount: atomic.NewUint32(0),
+		workers:      workers,
+		wait:         sync.WaitGroup{},
+	}
+
+	// Create a channel for each worker to send and receive on
+	for i := uint32(0); i < workers; i++ {
+		t.encode[i] = make(chan *proto.EncodeRequest)
+		t.decode[i] = make(chan *proto.DecodeRequest)
+		t.encodeRes[i] = make(chan proto.EncodeRes)
+		t.decodeRes[i] = make(chan proto.DecodeRes)
+	}
+
+	return t
+}
+```
+
+The `make` function is a built-in function that is required to create channels, maps and slices. We explained its usage (and `append`) in its first appearance, way back in the encoder, as it applies to slices. It also is used with maps and channels. 
+
+We are not using maps in this tutorial, so, along with mutexes, these are two features of Go that we will not explain here.
+
+Both of those features have very specific purposes, and Go's implementation, being bare bones as is the pattern with everything in Go, have caveats you will need to learn about later when you need to use them. We personally avoid mutexes always because they require keeping track of open and close operations and thus are very prone to error, where atomics simply access the value and write the value at a given moment and do not need this "bracketing". 
+
+Maps are useful especially for lists of things where there must not be a duplicate key, but are annoying because to sort them you have to copy all their references into a slice and write a custom sort function that is determined by the nature of the data in the keys, and values, as the specific case dictates.
+
+Back to channels, the `make` function *must* be called before the channel is sent or received on, because it will cause a panic if they are used without initialisation. 
+
+In this code, we first make the slices of channels, and then run a loop for each worker and initialise the channel for each of the four channels we make for each worker thread.
+
+#### Atomic Counters
+
+You wil also notice `encCallCount` and `decCallCount` are `atomic` types. As mentioned above, we skip mutexes and maps, but atomics are not so infrequently used as those two structures in common Go code, for the reason that concurrent access to a shared variable can lead to race conditions and indeterminate state if two or more threads are accessing a variable and one or more of them are writing to it at the same time.
+
+Atomic values only permit one accessor at a time, and have a built-in lock that protects their access, if two threads try to access an atomic at exactly the same time, the first one gets first go and then the second thread waits until the value has been read or written (`Load` and `Store`) before it gets its access.
+
+One can encapsulate *any* variable in an `atomic.Value` and the Go standard library `sync/atomic` . To see more about this, I will introduce you to `godoc` which lives at [https://pkg.go.dev](https://pkg.go.dev) - here is the `sync/atomic` package: https://pkg.go.dev/sync/atomic
+
+We are using the [go.uber.org/atomic](https://pkg.go.dev/go.uber.org/atomic) variant out of habit because it has a few more important types as you can see if you click the link I just dropped there. Boolean, Duration, Error, Float64, Int32, Int64, Time, String and some unsafe things. 
+
+Uber's version is better, because it creates proper initialisers for everything, whereas with the inbuilt `sync/atomic` library we have to boilerplate all that stuff to do it correctly. As I say, in this case, it's just habit as the non-pointer version of `sync.Int32` would serve just as well, but it is rare when one is using atomics that one is only doing such a small and singular thing with it as this, usually it will appear in multiple places protecting exclusive access with nicer syntax than mutexes, and facilitating very fast increment and decrement operations for counters, which is our use case here.
+
+#### Running the Worker Pool
+
+The next thing to put into `pkg/grpc/workerpool.go` is the start function, but this depends on two further functions we are adding for reasons of neatness and good practice.
+
+First is the handler loop:
+
+```go
+// handle the jobs, this is one thread of execution, and will run whatever job
+// has appeared and this thread
+func (t *Transcriber) handle(worker uint32) {
+
+    t.wait.Add(1)
+out:
+    for {
+        select {
+        case msg := <-t.encode[worker]:
+
+            t.encCallCount.Inc()
+            res, err := based32.Codec.Encode(msg.Data)
+            t.encodeRes[worker] <- proto.EncodeRes{
+                String: res,
+                Error:  err,
+            }
+
+        case msg := <-t.decode[worker]:
+
+            t.decCallCount.Inc()
+
+            bytes, err := based32.Codec.Decode(msg.EncodedString)
+            t.decodeRes[worker] <- proto.DecodeRes{
+                Bytes: bytes,
+                Error: err,
+            }
+
+        case <-t.stop:
+
+            break out
+        }
+    }
+
+    t.wait.Done()
+
+}
+```
+This is something that you won't see many beginner tutorials showing, because beginner Go tutorials usually are just showing you how to use the `net/http` library, which has a loop like this inside it, and you only have to write a function or closure and load it into the initialiser function, before calling the `Serve` function. 
+
+We are here showing you what goes on underneath this layer, because we are creating our own concurrent handler for our server.
+
+You can see that each loop, which constitutes each "worker" in the worker pool, is basically the same, it receives a job from the `encode` and `decode` channels, using the `worker` variable to define which of the slice members it will access the channel for, which defines the scope of each worker's remit.
+
+The actual function is then called, that we defined back in the `based32` package, and then it sends the result back on the `encodeRes` and `decodeRes` results channels.
+
+This is the in-process equivalent of the RPC that is the next part of the server we will be creating after we have finished creating the worker pool, that uses channels instead of network sockets to pass messages.
+
+It's important to understand that part of the reason why Go has coroutines (goroutines) and channels is precisely to act as a model for the external, network facing parts, to provide the programmer with one model and two different implementations, one for inside, one for outside, to enable the accurate modelling of concurrent processes that communicate with each other. Other programming languages don't strive for this consistency and for which reason the "async" model of programming is more often used, which hides the handler and callback mechanisms and the processing is also, usually single threaded, which is less performant.
+
+#### Logging the call counts
+
+There isn't any point in putting the counter in there if it wasn't going to come back out somewhere, and the logical place for this is in a log print that summarises the activity of the server's run:
+
+```go
+// logCallCounts prints the values stored in the encode and decode counter
+// atomic variables.
+func (t *Transcriber) logCallCounts() {
+
+    log.Printf(
+        "processed %v encodes and %v encodes",
+        t.encCallCount.Load(), t.decCallCount.Load(),
+    )
+}
+```
+#### Starting the worker pool
+
+The start function spawns the workers in a loop, calling the `handle` function for each worker, spawning an individual thread for each, and returns a function that runs when they stop.
+
+```go
+// Start up the worker pool.
+func (t *Transcriber) Start() (stop func()) {
+
+    // Spawn the number of workers configured.
+    for i := uint32(0); i < t.workers; i++ {
+
+        go t.handle(i)
+    }
+
+    return func() {
+
+        // Wait until all have stopped.
+        t.wait.Wait()
+
+        // Log the number of jobs that were done during the run.
+        t.logCallCounts()
+
+    }
+}
+```
 
