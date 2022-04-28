@@ -343,17 +343,17 @@ package codecer
 // complete implementation as well as illustrating the use of interfaces in Go.
 type Codecer interface {
 
-	// Encode takes an arbitrary length byte input and returns the output as
-	// defined for the codec.
-	Encode(input []byte) (output string, err error)
+    // Encode takes an arbitrary length byte input and returns the output as
+    // defined for the codec.
+    Encode(input []byte) (output string, err error)
 
-	// Decode takes an encoded string and returns if the encoding is valid and
-	// the value passes any check function defined for the type.
-	//
-	// If the check fails or the input is too short to have a check, false and
-	// nil is returned. This is the contract for this method that
-	// implementations should uphold.
-	Decode(input string) (output []byte, err error)
+    // Decode takes an encoded string and returns if the encoding is valid and
+    // the value passes any check function defined for the type.
+    //
+    // If the check fails or the input is too short to have a check, false and
+    // nil is returned. This is the contract for this method that
+    // implementations should uphold.
+    Decode(input string) (output []byte, err error)
 }
 ```
 
@@ -374,7 +374,7 @@ applications that use our code.
 package codec
 
 import (
-	"github.com/quanterall/kitchensink/pkg/codecer"
+    "github.com/quanterall/kitchensink/pkg/codecer"
 )
 ```
 
@@ -757,8 +757,8 @@ In this folder, create a file `log.go`:
 package based32
 
 import (
-	logg "log"
-	"os"
+    logg "log"
+    "os"
 )
 
 var log = logg.New(os.Stderr, "based32 ", logg.Llongfile)
@@ -798,17 +798,17 @@ const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 // Codec provides the encoder/decoder implementation created by makeCodec.
 var Codec = makeCodec(
-	"Base32Check",
-	charset,
-	"QNTRL",
+    "Base32Check",
+    charset,
+    "QNTRL",
 )
 
 // makeCodec generates our custom codec as above, into the exported Codec
 // variable
 func makeCodec(
-	name string,
-	cs string,
-	hrp string,
+    name string,
+    cs string,
+    hrp string,
 ) (cdc *codec.Codec) {
     
     return cdc
@@ -830,13 +830,13 @@ Before we start to show you how to put things into the `Codec` we first will jus
 
 ```go
 type Codec struct {
-	Name string
-	HRP string
-	Charset string
-	Encoder func(input []byte) (output string, err error)
-	Decoder func(input string) (output []byte, err error)
-	MakeCheck func(input []byte, checkLen int) (output []byte)
-	Check func(input []byte) (err error)
+    Name string
+    HRP string
+    Charset string
+    Encoder func(input []byte) (output string, err error)
+    Decoder func(input string) (output []byte, err error)
+    MakeCheck func(input []byte, checkLen int) (output []byte)
+    Check func(input []byte) (err error)
 }
 ```
 
@@ -845,12 +845,12 @@ HRP and Charset are configuration values, and Encoder, Decoder, MakeCheck and Ch
 The configuration part is simple to define, so add this to `makeCodec` :
 
 ```go
-	// Create the codec.Codec struct and put its pointer in the return variable.
-	cdc = &codec.Codec{
-		Name:    name,
-		Charset: cs,
-		HRP:     hrp,
-	}
+    // Create the codec.Codec struct and put its pointer in the return variable.
+    cdc = &codec.Codec{
+        Name:    name,
+        Charset: cs,
+        HRP:     hrp,
+    }
 ```
 
 This section:
@@ -862,9 +862,9 @@ const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 // Codec provides the encoder/decoder implementation created by makeCodec.
 var Codec = makeCodec(
-	"Base32Check",
-	charset,
-	"QNTRL",
+    "Base32Check",
+    charset,
+    "QNTRL",
 )
 
 ```
@@ -876,21 +876,21 @@ In fact, the Name field is not used anywhere, but in an application that can wor
 Stub in the closures for the codec:
 
 ```go
-	cdc.MakeCheck = func(input []byte, checkLen int) (output []byte) {
-   		return
-	}
+    cdc.MakeCheck = func(input []byte, checkLen int) (output []byte) {
+           return
+    }
 
-	cdc.Encoder = func(input []byte) (output string, err error) {
-    	return
-	}
+    cdc.Encoder = func(input []byte) (output string, err error) {
+        return
+    }
 
-	cdc.Check = func(input []byte) (err error) {
-    	return
-	}
+    cdc.Check = func(input []byte) (err error) {
+        return
+    }
 
-	cdc.Decoder = func(input string) (output []byte, err error) {
-    	return
-	}
+    cdc.Decoder = func(input string) (output []byte, err error) {
+        return
+    }
 ```
 
 Again, we like to teach good, time saving, and error saving practices for programming. Making stubs for things that you know you eventually have to fill in is a good practice for this purpose. 
@@ -912,17 +912,17 @@ Note that the returns can be left 'naked' like this because the variables are de
 The first thing we need for the codec is the check function. The check makes a checksum value. We additionally add the requirement that the check serves double duty as a pad to fill out the Base32 strings, which otherwise get ugly padding characters, usually `=` in the case of standard Go base32 library. Thus, the check function also includes a length parameter.
 
 ```go
-	// We need to create the check creation functions first
-	cdc.MakeCheck = func(input []byte, checkLen int) (output []byte) {
+    // We need to create the check creation functions first
+    cdc.MakeCheck = func(input []byte, checkLen int) (output []byte) {
 
-		// We use the Blake3 256 bit hash because it is nearly as fast as CRC32
-		// but less complicated to use due to the 32 bit integer conversions to
-		// bytes required to use the CRC32 algorithm.
-		checkArray := blake3.Sum256(input)
+        // We use the Blake3 256 bit hash because it is nearly as fast as CRC32
+        // but less complicated to use due to the 32 bit integer conversions to
+        // bytes required to use the CRC32 algorithm.
+        checkArray := blake3.Sum256(input)
 
-		// This truncates the blake3 hash to the prescribed check length
-		return checkArray[:checkLen]
-	}
+        // This truncates the blake3 hash to the prescribed check length
+        return checkArray[:checkLen]
+    }
 ```
 
 It is possible to instead use the shorter, and simpler `crc32` checksum function, but we don't like it because it requires converting bytes to 32 bit integers and back again, which is done in practise like this:
@@ -930,9 +930,9 @@ It is possible to instead use the shorter, and simpler `crc32` checksum function
 ```go
 example := []byte{1, 2, 3, 4}
 asInteger := uint32(example[0]) + 
-	(uint32(example[1]) << 8) +
-	(uint32(example[2]) << 16) +
-	(uint32(example[3]) << 24) 
+    (uint32(example[1]) << 8) +
+    (uint32(example[2]) << 16) +
+    (uint32(example[3]) << 24) 
 
 ```
 
@@ -963,20 +963,20 @@ So, first thing to add is a helper function, which we recommend you put *before*
 ```go
 func getCheckLen(length int) (checkLen int) {
 
-	// The following formula ensures that there is at least 1 check byte, up to
-	// 4, in order to create a variable length theck that serves also to pad to
-	// 5 bytes per 8 5 byte characters (2^5 = 32 for base 32)
-	//
-	// we add two to the length before modulus, as there must be 1 byte for
-	// check length and 1 byte of check
-	lengthMod := (2 + length) % 5
+    // The following formula ensures that there is at least 1 check byte, up to
+    // 4, in order to create a variable length theck that serves also to pad to
+    // 5 bytes per 8 5 byte characters (2^5 = 32 for base 32)
+    //
+    // we add two to the length before modulus, as there must be 1 byte for
+    // check length and 1 byte of check
+    lengthMod := (2 + length) % 5
 
-	// The modulus is subtracted from 5 to produce the complement required to
-	// make the correct number of bytes of total data, plus 1 to account for the
-	// minimum length of 1.
-	checkLen = 5 - lengthMod + 1
+    // The modulus is subtracted from 5 to produce the complement required to
+    // make the correct number of bytes of total data, plus 1 to account for the
+    // minimum length of 1.
+    checkLen = 5 - lengthMod + 1
 
-	return checkLen
+    return checkLen
 }
 ```
 
@@ -989,47 +989,47 @@ The function takes the input of the length of our message in bytes, and returns 
 The standard library contains a set of functions to encode and decode base 32 numbers using custom character sets. The 32 characters defined in the initialiser defined earlier, are chosen for their distinctiveness, it does not have I and 1, only small L (l), and only has zero (0) not capital O, as, unfortunately, in many fonts these can be hard to differentiate. Likewise for 2 and Z, and 5 and S.
 
 ```go
-	// Create a base32.Encoding from the provided charset.
-	enc := base32.NewEncoding(cdc.Charset)
+    // Create a base32.Encoding from the provided charset.
+    enc := base32.NewEncoding(cdc.Charset)
 
-	cdc.Encoder = func(input []byte) (output string, err error) {
+    cdc.Encoder = func(input []byte) (output string, err error) {
 
-		if len(input) < 1 {
+        if len(input) < 1 {
 
-			err = proto.Error_ZERO_LENGTH
-			return
-		}
+            err = proto.Error_ZERO_LENGTH
+            return
+        }
 
-		// The check length depends on the modulus of the length of the data is
-		// order to avoid padding.
-		checkLen := getCheckLen(len(input))
+        // The check length depends on the modulus of the length of the data is
+        // order to avoid padding.
+        checkLen := getCheckLen(len(input))
 
-		// The output is longer than the input, so we create a new buffer.
-		outputBytes := make([]byte, len(input)+checkLen+1)
+        // The output is longer than the input, so we create a new buffer.
+        outputBytes := make([]byte, len(input)+checkLen+1)
 
-		// Add the check length byte to the front
-		outputBytes[0] = byte(checkLen)
+        // Add the check length byte to the front
+        outputBytes[0] = byte(checkLen)
 
-		// Then copy the input bytes for beginning segment.
-		copy(outputBytes[1:len(input)+1], input)
+        // Then copy the input bytes for beginning segment.
+        copy(outputBytes[1:len(input)+1], input)
 
-		// Then copy the check to the end of the input.
-		copy(outputBytes[len(input)+1:], cdc.MakeCheck(input, checkLen))
+        // Then copy the check to the end of the input.
+        copy(outputBytes[len(input)+1:], cdc.MakeCheck(input, checkLen))
 
-		// Create the encoding for the output.
-		outputString := enc.EncodeToString(outputBytes)
+        // Create the encoding for the output.
+        outputString := enc.EncodeToString(outputBytes)
 
-		// We can omit the first character of the encoding because the length
-		// prefix never uses the first 5 bits of the first byte, and add it back
-		// for the decoder later.
-		trimmedString := outputString[1:]
+        // We can omit the first character of the encoding because the length
+        // prefix never uses the first 5 bits of the first byte, and add it back
+        // for the decoder later.
+        trimmedString := outputString[1:]
 
-		// Prefix the output with the Human Readable Part and append the
-		// encoded string version of the provided bytes.
-		output = cdc.HRP + trimmedString
+        // Prefix the output with the Human Readable Part and append the
+        // encoded string version of the provided bytes.
+        output = cdc.HRP + trimmedString
 
-		return
-	}
+        return
+    }
 ```
 
 The comments explain every step in the process. 
@@ -1064,7 +1064,7 @@ First thing we need to run the check function is a function that calculates the 
 // getCutPoint is made into a function because it is needed more than once.
 func getCutPoint(length, checkLen int) int {
 
-	return length - checkLen - 1
+    return length - checkLen - 1
 }
 ```
 
@@ -1073,68 +1073,68 @@ This is a very simple formula, but it needs to be used again in the decoder func
 The following function assumes that the decoding from Base32 to bytes has already been done correctly, but nothing more:
 
 ```go
-	cdc.Check = func(input []byte) (err error) {
+    cdc.Check = func(input []byte) (err error) {
 
-		// We must do this check or the next statement will cause a bounds check
-		// panic. Note that zero length and nil slices are different, but have
-		// the same effect in this case, so both must be checked.
-		switch {
-		case len(input) < 1:
+        // We must do this check or the next statement will cause a bounds check
+        // panic. Note that zero length and nil slices are different, but have
+        // the same effect in this case, so both must be checked.
+        switch {
+        case len(input) < 1:
 
-			err = proto.Error_ZERO_LENGTH
-			return
+            err = proto.Error_ZERO_LENGTH
+            return
 
-		case input == nil:
+        case input == nil:
 
-			err = proto.Error_NIL_SLICE
-			return
-		}
+            err = proto.Error_NIL_SLICE
+            return
+        }
 
-		// The check length is encoded into the first byte in order to ensure
-		// the data is cut correctly to perform the integrity check.
-		checkLen := int(input[0])
+        // The check length is encoded into the first byte in order to ensure
+        // the data is cut correctly to perform the integrity check.
+        checkLen := int(input[0])
 
-		// Ensure there is at enough bytes in the input to run a check on
-		if len(input) < checkLen+1 {
+        // Ensure there is at enough bytes in the input to run a check on
+        if len(input) < checkLen+1 {
 
-			err = proto.Error_CHECK_TOO_SHORT
-			return
-		}
+            err = proto.Error_CHECK_TOO_SHORT
+            return
+        }
 
-		// Find the index to cut the input to find the checksum value. We need
-		// this same value twice so it must be made into a variable.
-		cutPoint := getCutPoint(len(input), checkLen)
+        // Find the index to cut the input to find the checksum value. We need
+        // this same value twice so it must be made into a variable.
+        cutPoint := getCutPoint(len(input), checkLen)
 
-		// Here is an example of a multiple assignment and more use of the
-		// slicing operator.
-		payload, checksum := input[1:cutPoint], string(input[cutPoint:])
+        // Here is an example of a multiple assignment and more use of the
+        // slicing operator.
+        payload, checksum := input[1:cutPoint], string(input[cutPoint:])
 
-		// A checksum is checked in all cases by taking the data received, and
-		// applying the checksum generation function, and then comparing the
-		// checksum to the one attached to the received data with checksum
-		// present.
-		//
-		// Note: The casting to string above and here. This makes a copy to the
-		// immutable string, which is not optimal for large byte slices, but for
-		// this short check value, it is a cheap operation on the stack, and an
-		// illustration of the interchangeability of []byte and string, with the
-		// distinction of the availability of a comparison operator for the
-		// string that isn't present for []byte, so for such cases this
-		// conversion is a shortcut method to compare byte slices.
-		computedChecksum := string(cdc.MakeCheck(payload, checkLen))
+        // A checksum is checked in all cases by taking the data received, and
+        // applying the checksum generation function, and then comparing the
+        // checksum to the one attached to the received data with checksum
+        // present.
+        //
+        // Note: The casting to string above and here. This makes a copy to the
+        // immutable string, which is not optimal for large byte slices, but for
+        // this short check value, it is a cheap operation on the stack, and an
+        // illustration of the interchangeability of []byte and string, with the
+        // distinction of the availability of a comparison operator for the
+        // string that isn't present for []byte, so for such cases this
+        // conversion is a shortcut method to compare byte slices.
+        computedChecksum := string(cdc.MakeCheck(payload, checkLen))
 
-		// Here we assign to the return variable the result of the comparison.
-		// by doing this instead of using an if and returns, the meaning of the
-		// comparison is more clear by the use of the return value's name.
-		valid := checksum != computedChecksum
+        // Here we assign to the return variable the result of the comparison.
+        // by doing this instead of using an if and returns, the meaning of the
+        // comparison is more clear by the use of the return value's name.
+        valid := checksum != computedChecksum
 
-		if !valid {
+        if !valid {
 
-			err = proto.Error_CHECK_FAILED
-		}
+            err = proto.Error_CHECK_FAILED
+        }
 
-		return
-	}
+        return
+    }
 ```
 
 Take note about the use of the string cast above. In Go, slices do not have an equality operator `==` but and arrays (fixed length with a constant length value like this `[32]byte` as opposed to `[]byte` for the slice) and strings do. 
@@ -1146,86 +1146,86 @@ Casting bytes to string creates an immutable copy so it adds a copy operation. I
 The decoder cuts off the HRP, prepends the always zero first base32 character, decodes using the Base32 encoder (it is created prior to the encode function previously, and is actually a codec, though I used the name `enc`, it also has a decode function).
 
 ```go
-	cdc.Decoder = func(input string) (output []byte, err error) {
+    cdc.Decoder = func(input string) (output []byte, err error) {
 
-		// Other than for human identification, the HRP is also a validity
-		// check, so if the string prefix is wrong, the entire value is wrong
-		// and won't decode as it is expected.
-		if !strings.HasPrefix(input, cdc.HRP) {
+        // Other than for human identification, the HRP is also a validity
+        // check, so if the string prefix is wrong, the entire value is wrong
+        // and won't decode as it is expected.
+        if !strings.HasPrefix(input, cdc.HRP) {
 
-			log.Printf("Provided string has incorrect human readable part:"+
-				"found '%s' expected '%s'", input[:len(cdc.HRP)], cdc.HRP,
-			)
+            log.Printf("Provided string has incorrect human readable part:"+
+                "found '%s' expected '%s'", input[:len(cdc.HRP)], cdc.HRP,
+            )
 
-			err = proto.Error_INCORRECT_HUMAN_READABLE_PART
+            err = proto.Error_INCORRECT_HUMAN_READABLE_PART
 
-			return
-		}
+            return
+        }
 
-		// Cut the HRP off the beginning to get the content, add the initial
-		// zeroed 5 bits with a 'q' character.
+        // Cut the HRP off the beginning to get the content, add the initial
+        // zeroed 5 bits with a 'q' character.
         //
-		// Be aware the input string will be copied to create the []byte
-		// version. Also, because the input bytes are always zero for the first
-		// 5 most significant bits, we must re-add the zero at the front (q)
-		// before feeding it to the decoder.
+        // Be aware the input string will be copied to create the []byte
+        // version. Also, because the input bytes are always zero for the first
+        // 5 most significant bits, we must re-add the zero at the front (q)
+        // before feeding it to the decoder.
         input = "q" + input[len(cdc.HRP):]
 
-		// The length of the base32 string refers to 5 bits per slice index
-		// position, so the correct size of the output bytes, which are 8 bytes
-		// per slice index position, is found with the following simple integer
-		// math calculation.
-		//
-		// This allocation needs to be made first as the base32 Decode function
-		// does not do this allocation automatically and it would be wasteful to
-		// not compute it precisely, when the calculation is so simple.
-		//
-		// If this allocation is omitted, the decoder will panic due to bounds
-		// check error. A nil slice is equivalent to a zero length slice and
-		// gives a bounds check error, but in fact, the slice has no data at
-		// all. Yes, the panic message is lies:
-		//
-		//   panic: runtime error: index out of range [4] with length 0
-		//
-		// If this assignment isn't made, by default, output is nil, not
-		// []byte{} so this panic message is deceptive.
-		data := make([]byte, len(input)*5/8)
+        // The length of the base32 string refers to 5 bits per slice index
+        // position, so the correct size of the output bytes, which are 8 bytes
+        // per slice index position, is found with the following simple integer
+        // math calculation.
+        //
+        // This allocation needs to be made first as the base32 Decode function
+        // does not do this allocation automatically and it would be wasteful to
+        // not compute it precisely, when the calculation is so simple.
+        //
+        // If this allocation is omitted, the decoder will panic due to bounds
+        // check error. A nil slice is equivalent to a zero length slice and
+        // gives a bounds check error, but in fact, the slice has no data at
+        // all. Yes, the panic message is lies:
+        //
+        //   panic: runtime error: index out of range [4] with length 0
+        //
+        // If this assignment isn't made, by default, output is nil, not
+        // []byte{} so this panic message is deceptive.
+        data := make([]byte, len(input)*5/8)
 
-		var writtenBytes int
-		writtenBytes, err = enc.Decode(data, []byte(input))
-		if err != nil {
+        var writtenBytes int
+        writtenBytes, err = enc.Decode(data, []byte(input))
+        if err != nil {
 
-			log.Println(err)
-			return
-		}
+            log.Println(err)
+            return
+        }
 
-		// The first byte signifies the length of the check at the end
-		checkLen := int(data[0])
-		if writtenBytes < checkLen+1 {
+        // The first byte signifies the length of the check at the end
+        checkLen := int(data[0])
+        if writtenBytes < checkLen+1 {
 
-			err = proto.Error_CHECK_TOO_SHORT
+            err = proto.Error_CHECK_TOO_SHORT
 
-			return
-		}
+            return
+        }
 
-		// Assigning the result of the check here as if true the resulting
-		// decoded bytes still need to be trimmed of the check value (keeping
-		// things cleanly separated between the check and decode function.
-		err = cdc.Check(data)
+        // Assigning the result of the check here as if true the resulting
+        // decoded bytes still need to be trimmed of the check value (keeping
+        // things cleanly separated between the check and decode function.
+        err = cdc.Check(data)
 
-		// There is no point in doing any more if the check fails, as per the
-		// contract specified in the interface definition codecer.Codecer
-		if err != nil {
-			return
-		}
+        // There is no point in doing any more if the check fails, as per the
+        // contract specified in the interface definition codecer.Codecer
+        if err != nil {
+            return
+        }
 
-		// Slice off the check length prefix, and the check bytes to return the
-		// valid input bytes.
-		output = data[1:getCutPoint(len(data)+1, checkLen)]
+        // Slice off the check length prefix, and the check bytes to return the
+        // valid input bytes.
+        output = data[1:getCutPoint(len(data)+1, checkLen)]
 
-		// If we got to here, the decode was successful.
-		return
-	}
+        // If we got to here, the decode was successful.
+        return
+    }
 ```
 
 Note that in a couple of places there are log prints. This is because when developing this, it was critical to be able to see what exactly was incorrect, in tests where the result was wrong.
