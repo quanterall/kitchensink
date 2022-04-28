@@ -96,4 +96,88 @@ func TestCodec(t *testing.T) {
 			t.FailNow()
 		}
 	}
+
+	encodedStr := []string{
+		"QNTRLfalgen75ph72a585lqv32hgd8d3qd6950vvth89huhuvgrd8wt7ftet",
+		"QNTRLwzvpm30fxlmym6g57xf6pytkvy6qpkmf3uer6lym4ku8ukvzpnckqs6",
+		"QNTRLssx49fufwj008l785ay2gs57xwtv03gjkrxesnu0nm2fmy0uhmerj80",
+		"QNTRL56avnzqrq5uvgtzfl5afuf5cf9wjz0v7nc8a3z5pl743yglgjs6nypp",
+		"QNTRLetn66vf5tpfj3z8k3nf4e5nrufww0y8gn5lv4z3jx9p70vwrzchx7pf",
+		"QNTRLg4s3t493nqadqx7peav4hqz06lxq8uj8lua25mvdae7y4v6rd43fmcv",
+		"QNTRLw7vxftqqhd9nvr0dx6vrnrzezd0qs0ce4dd0xupx50mlwa09nr8hhvc",
+		"QNTRL3p2paae4mcums9n72sl6ra4glahde0t2r60tfnydm5f987lalykzuqe",
+		"QNTRL4gwrjult7x4xf0ps2v04mh20lvnmqlrh4gc9x08z5xp74yva49qf29d",
+		"QNTRLc32wzn5en7krfr4wc2sl95q8887kvc58mz5nhltdj26ljxy33yxs7px",
+		"QNTRLtx3kgdaw30pytcdk86u5njvhc96e6zrjyfd2x09h8q2gj3xfznp4l5y",
+		"QNTRLw0vf0t8pvznuu3dn4du8s4v5jsavjzcaafundv2jg3qs8wpa6czu2kz",
+		"QNTRLnv9wy7gnre0e9wjs26c5r4ywhqmzun030jy6tchc0r8tnng3e6u5pg6",
+		"QNTRLkr4hth8ax3h9l3m450m7r3wgyvs8rq765esyav0c5tykqfwr2u7zmfp",
+		"QNTRLe77jn9xdprrmwysg7xchgama567kanx4s9ckn3vhqyvrjam6x9h7qmx",
+		"QNTRLg2eg6g4phzpa0fv90a0hp9w7gshd95eqyahqp5ygs5kz6wun6fmukle",
+		"QNTRLw5s5yzw53cd7cwnxlz3tzd4ypz54j7stm6mhe7j4q59qsazy2lfqq35",
+		"QNTRLj5rthjjqmmdhmm29jea5ehlhxdpn0ayuqzjprlakvtvazqpxt0zdxtv",
+		"QNTRLhm2p850gy33l673kfw99jmnafpc4jqrmdma24yakns45vhg0sfcsrrp",
+		"QNTRLcr5ckwvuaurqskvd9qusjfqvkpwe3ps9rg4wmgquqketvvex8jy6alw",
+		"QNTRLgsrcdtxwfxz9x6hpuemax2v6cy5uxny70042tcnjz6v9tw8udkk6rkl",
+		"QNTRL0h7cvk49gt76addtfyxhf3pur687c0yucz4wy5leeeg5xakxgywasu3",
+		"QNTRLjwv9930cch7grmpj7j0hqf4vutl64a5exyxgx7282w5tm7738hap8u7",
+		"QNTRL54d7ggnqp3jhd0k2qszhufgh2gc0mpvd3ecgvwu89ke8w8kcv3ksyma",
+		"QNTRLcrc92k7grg2u73f80akwqtyve5zmpvt2gnw425d7tepqnaz7jehh549",
+		"QNTRLtgprt242relq092g606yvl42depu6hcfuf5r5jkemlq2tv989mr0wng",
+		"QNTRLwpaadj0tsf56yyw3wvu3gvkhrgyy29vljqscvm3rkt4gq86wv2upf6r",
+		"QNTRLnv6fvv3gtgptl25rag0rr6pkl5h8z3sckdray2tf4x324k82a58c5kf",
+		"QNTRL5lqt9qtwee4agg5mw9sxl0vu5cfqaj4zryufe26p0scew9w9cgcnqj8",
+		"QNTRLeqlgvgeqswaruaz2r65w6xwjpyq3ngd0wmmxa5hsqld998rns3l4gfz",
+		"QNTRL23v947tnqxzk47glhaw2h85cczqatupvwepqu580e09wdyn3r2eeltr",
+		"QNTRLvpp2hzcneda388gq63ncxzplc0p2ut3ygnsr4g4ycav6qj5yz9g9lv8",
+	}
+
+	encoded := "\nencodedStr := []string{\n"
+
+	// Convert hashes to our base32 encoding format
+	for i := range hashedSeeds {
+
+		// Note that we are slicing off a number of bytes at the end according
+		// to the sequence number to get different check byte lengths from a
+		// uniform original data. As such, this will be accounted for in the
+		// check by truncating the same amount in the check (times two, for the
+		// hex encoding of the string).
+		encode, err := Codec.Encode(hashedSeeds[i][:len(hashedSeeds[i])-i%5])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if encode != encodedStr[i] {
+			t.Fatalf(
+				"Decode failed, expected item %d '%s' got '%s'",
+				i, encodedStr[i], encode,
+			)
+		}
+		encoded += "\t\"" + encode + "\",\n"
+	}
+
+	encoded += "}\n"
+	t.Log(encoded)
+
+	// Next, decode the encodedStr above, which should be the output of the
+	// original generated seeds, with the index mod 5 truncations performed on
+	// each as was done to generate them.
+
+	for i := range encodedStr {
+
+		res, err := Codec.Decode(encodedStr[i])
+		if err != nil {
+			t.Fatalf("error: '%v'", err)
+		}
+		elen := len(expected[i])
+		etrimlen := 2 * (i % 5)
+		expectedHex := expected[i][:elen-etrimlen]
+		resHex := fmt.Sprintf("%x", res)
+		if resHex != expectedHex {
+			t.Fatalf(
+				"got: '%s' expected: '%s'",
+				resHex,
+				expectedHex,
+			)
+		}
+	}
 }

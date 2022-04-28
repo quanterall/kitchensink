@@ -148,8 +148,8 @@ func TestCodec(t *testing.T) {
 		}
 		if encode != encodedStr[i] {
 			t.Fatalf(
-				"Decode failed, expected '%s' got '%s'",
-				encodedStr, encode,
+				"Decode failed, expected item %d '%s' got '%s'",
+				i, encodedStr[i], encode,
 			)
 		}
 		encoded += "\t\"" + encode + "\",\n"
