@@ -45,6 +45,12 @@
 		- [Enabling logging in the tests](#enabling-logging-in-the-tests)
 		- [The Go tool recursive descent notation](#the-go-tool-recursive-descent-notation)
 		- [Running the tests with logging and recursive descent](#running-the-tests-with-logging-and-recursive-descent)
+		- [Actually testing the Encoder and Decoder](#actually-testing-the-encoder-and-decoder)
+	- [Step 6 Creating a Server](#step-6-creating-a-server)
+		- [The Logger](#the-logger)
+		- [Implementing the worker pool](#implementing-the-worker-pool)
+		- [About Channels](#about-channels)
+		- [About Waitgroups](#about-waitgroups)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -1694,4 +1700,109 @@ FAIL
 In some cases, it makes sense to test multiple failure modes, but for the sake of brevity, we are not testing for failure modes at all, just that a random collection of inputs correctly encodes and decodes, given the extra element of varying the length by up to 5 bytes to account for the variable length check size of 1 to 5 bytes long.
 
 Writing good tests is a bit of a black art, and the task gets more and more complicated the more complex the algorithms.
+
+----
+
+### [Step 6](steps/step6) Creating a Server
+
+Just to clarify an important distinction, and another aspect of writing modular code, we are not writing an *executable* that you can spawn from the commandline or within scripts or Dockerfiles. We are writing an *in process* service that can be started by any Go application, the actual application that does this will be done later.
+
+The reason why we separate the two things is because for tests, we want to spawn a server and also in parallel run a client to query it.
+
+Because our service uses gRPC/Protobuf for its messages, for the reason that it is binary, and supported by almost every major langage, we will put the service inside `pkg/grpc/server`.
+
+#### The Logger
+
+I will be repetitive about this, because I want to reinforce the point that debugging by log printing is *not* "unprofessional" or any insults that certain kinds of "programmers" would have you believe. Ignore these fools, they have amnesia about their own learning process and want to be elite forever and not have competition.
+
+In the olden days, when code was single threaded and largely procedural, ok, you didn't really need to do this so much because you could just step through the code line by line, set breakpoints, and immediately know where a failure was because the debugger would tell you.
+
+This can probably be said to be true even of languages with heavy threading systems like C++/Boost and Rust/Tokio in that you can rely on the debugger to tell you where your errors are. 
+
+But this simply is not true of Go multithreaded applications. 
+
+The service we are about to explain how to build runs, by default in the binary service daemon we will show you how to build later, 8 concurrent threads to process requests, which run in parallel with a watcher thread that waits for shutdown, using process signals to ensure a clean shutdown when that signal occurs.
+
+This is just a simple application, and has 9 concurrent threads operating. A much more usual situation with writing servers and applications in Go is that there could be 10 or 20 different pieces of code running concurrently with potentially thousands of concurrent threads, and the timing of their interactions can be crucial to the functionality of the application. 
+
+Concurrent programming just cannot be properly debugged only with a debugger, unless that debugger is recording the state of EVERYTHING. Because that is also not practical for performance reasons, log prints let you record application state only when you actually need it to be logged. 
+
+The standard logging library doesn't account for the production versus debug mode logging either, and makes subsystems being enabled explicitly without others, there needs to be better tools, and I have written some such tools but we will not cover this here. For now, just to make sure you know why you should use this little source code location configuration on the standard logger when you are learning, at least.
+
+The only practical way to debug such an application is with logging, with decent precision timestamps so you can correctly play back a post mortem in slow motion to see what actually went wrong, and where.
+
+Put this file in `pkg/grpc/server/log.go` first:
+
+```go
+package server
+
+import (
+	logg "log"
+	"os"
+)
+
+var log = logg.New(os.Stderr, "b32 ", logg.Llongfile)
+```
+
+It is not generally told this way in the Go community, but this was essential to my own progress as a Go programmer, and I think that if it works this way for me, it probably will help at least a substantial number of other developers starting out on their journey who may not have the luxury of the amount of time I was able to finagle in my learning process as an intern, during which time my living conditions were abominable. 
+
+You can gloss over this, if you want to, but you will come back to it if you intend to make any real progress in this business.
+
+This little file makes sure that you can put log prints in anywhere in your code, and when they are printed out, easily jump into the codebase exactly where the problem comes up.
+
+#### Implementing the worker pool
+
+Continuing, as always, with steps that build upon the previous steps and not leaving you with code that would not compile due to undefined symbols, the very first thing you need to put in the package is the `Transcriber`, which is the name we will give to our worker pool.
+
+So, create a new file `pkg/grpc/server/workerpool.go` and into it we will first put the `Transcriber` data structure, which manages the worker pool:
+
+```go
+package server
+
+import (
+	"github.com/quanterall/kitchensink/pkg/based32"
+	"github.com/quanterall/kitchensink/pkg/proto"
+	"go.uber.org/atomic"
+	"sync"
+)
+
+// Transcriber is a multithreaded worker pool for performing transcription
+// encode and decode requests.
+type Transcriber struct {
+	stop                       chan struct{}
+	encode                     []chan *proto.EncodeRequest
+	decode                     []chan *proto.DecodeRequest
+	encodeRes                  []chan proto.EncodeRes
+	decodeRes                  []chan proto.DecodeRes
+	encCallCount, decCallCount *atomic.Uint32
+	workers                    uint32
+	wait                       sync.WaitGroup
+}
+```
+
+There is a few explanations that need to be made to start with.
+
+#### About Channels
+
+First of all, channels themselves, which have the type `chan` as a prefix. 
+
+Channels are technically known as an Atomic FIFO Queue. What this means is that their operations are atomic, meaning either they happen, or they don't, and no other code sees an in-between state, so they can be safely used concurrently between two or more goroutines.
+
+They are FIFO, meaning First In First Out, in that what comes out, is what was put in first.
+
+The queues can be zero length, or can have multiple buffers, which makes them function more like a queue than a simple signalling or message passing mechanism. Generally one only adds buffers to them to account for latency in processing or to maintain ongoing processing without blocking on the process when it is in continuous operation.
+
+`stop` is often colloquially referred to as a "quit channel" or a "breaker". It is a breaker because with all `chan` types in Go, when you `close(channelName)` them, any time you read from them with `<-channelName` you will get `nil` forever, until the end of the program.
+
+We use the type `struct {}` which is an empty struct, because this is the smallest possible type of data it can be, it is zero bytes! So such a channel can only send simple signals, namely "something", which is actually nothing, it can be used like a momentary switch such as the power button on a computer, or the trigger on a gun, it simply sends a signal to do something to whatever it is connected to.
+
+So, such channels have to be single purpose. If you need to send only one signal to stop, you close the channel, if you want to use the channel to send multiple triggers, you send an empty struct value to it. You *could* distinguish between the two and recognise the `nil` separately in a the "trigger" channel mode, but it's just not worth it to combine the two and having a separate "quit" channel to "trigger" channels makes for easier reading, as every channel receive has to distinguish between `struct {}{}` and `nil` every time, which is a waste of time.
+
+For each API call we have a pair of channels created in this structure, one for the request, and one for the response. It is possible to embed the response in the requests as well, so the return channel is sent in the request, but this costs more in initiation and makes more sense for a lower frequency request service than the one we are making. The channel is already initialised before any requests are made, so the responses will return immediately and do not have to be initialised by the caller.
+
+The last point, is that each of the 4 channels we have for our two API methods call and response are slices. This allows us to define how many threads we will warm up when starting up the service to handle the expected workload. The reason for making this pre-allocated is again, response latency. This may not be so important in some types of applications, but in all cases, the result of pre-allocation is better performance and a lack of unexpected unbounded resource allocation, commonly known as a "resource leak" which can extend to not just variables but also channels and goroutines, both of which have a small but nonzero cost in allocation time and memory utilisation until they are freed by the garbage collector.
+
+#### About Waitgroups
+
+The last element of the struct is a `sync.Waitgroup`. This is an atomic counter which can be used to keep track of the number of threads that are running, and allows you to write code that holds things open until all of the wait group are `Done` when shutting down.
 
