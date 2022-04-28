@@ -39,6 +39,12 @@
 		- [Writing the Encoder Implementation](#writing-the-encoder-implementation)
 		- [Creating the Check function](#creating-the-check-function)
 		- [Creating the Decoder function](#creating-the-decoder-function)
+	- [Step 5 Testing the algorithm](#step-5-testing-the-algorithm)
+		- [Random generation of test data](#random-generation-of-test-data)
+		- [Running the tests](#running-the-tests)
+		- [Enabling logging in the tests](#enabling-logging-in-the-tests)
+		- [The Go tool recursive descent notation](#the-go-tool-recursive-descent-notation)
+		- [Running the tests with logging and recursive descent](#running-the-tests-with-logging-and-recursive-descent)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
@@ -249,9 +255,8 @@ exploited to break security, which is why Go lacks it).
 #### The decode messages
 
 ```protobuf
-
 message DecodeRequest{
-  string EncodedString = 1;es any check function defined for the type.
+  string EncodedString = 1;
 }
 
 message DecodeResponse {
@@ -944,7 +949,7 @@ for little-endian, the ordering of the left shift (which means multiply by 2 to 
 >
 > Maybe one day common sense will prevail and the bits will be ordered sequentially and not have reversals for every 8, 16, 32 or 64 byte chunks, it would make it a lot simpler to think about since we number the bytes forward, and each word is backwards...
 
-If you follow the logic of that conversion, you can see that it is 4 copy operations (copy 8 bit value to 32 bit *zero* value), 3 bit shifts and 3 addition operations. The hash function does not do this conversion, it operates directly on bytes (in fact, I think it uses 8 byte/64 bit words, and coerces the byte slices to 64 bit long words using an unsafe type conversion) using a sponge function, and Blake3 is the fastest hash function with cryptographic security, which means a low rate of collisions, which in terms of checksums equates to two strings creating the same checksum, and breaking some degree of security of the function. So, we use blake3 hashes and cut them to our custom length.
+If you follow the logic of that conversion, you can see that it is 4 copy operations (copy 8 bit value to 32 bit *zero* value), 3 bit shifts and 3 addition operations. The hash function does not do this conversion, it operates directly on bytes (in fact, I think it uses 8 byte/64 bit words, and coerces the byte slices to 64 bit long words using an unsafe type conversion) using a sponge function, and Blake3 is the fastest hash function with cryptographic security, which means a low rate of collisions, which in terms of checksums equates to two strings creating the same checksum, and breaking some degree of security of the function. So, we use blake3 hashes and cut them to our custom length.
 
 The length is variable as we are designing this algorithm to combine padding together with the check. So, essentially the way it works is we take the modulus of 5 (remainder of the division) of the length of the data, and pad it out to the next biggest multiple of 5 bytes, which is 8 base32 symbols. The formula for this comes next.
 
@@ -1230,3 +1235,223 @@ The decoder cuts off the HRP, prepends the always zero first base32 character, d
 
 Note that in a couple of places there are log prints. This is because when developing this, it was critical to be able to see what exactly was incorrect, in tests where the result was wrong.
 
+### [Step 5](steps/step5) Testing the algorithm
+
+I am not a fan of doing a lot of stuff before I put the thing into action, there is so many mistakes that can happen without the feedback. Go in almost every respect is a language designed for short feedback loops, and up until the previous step we were only writing mainly declarations so now that we have possibly working code, it needs to be exercised as soon as possible.
+
+The first way and best way to see the rubber meet the road in Go is writing tests. Tests make sure that changes don't break the code, once it's working, but they also are the best way to debug the code in the first place, without having to put them into use. 
+
+Tests are not necessarily going to prove everything is correct, for this there is more advanced techniques to work with more complex algorithms than we have written in this tutorial. For this test we just need a decently broad set of inputs that we can ensure are encoded correctly, and that are decoded correctly.
+
+For this, rather than creating truly random inputs, we exploit the determinism of the `math/rand` library to generate a deterministic set of inputs that will be variable enough to prove the code is working.
+
+#### Random generation of test data
+
+What we now do is use the random number generator to create a small set of random values that serve as the base to generate 256 bit values to encode, which would be typical data for this type of encoder, hash values for cryptocurrency addresses or transaction hash identifiers.
+
+We define a random seed, and from this run a loop to generate the defined number of random values, and then hash them with Blake3 hash function again... since there is no reason why to use a different library and clutter up our imports. 
+
+In general most new crypto projects are using blake3 because of its performance and security, and SHA256 to deal with legacy hashes from older projects. 
+
+IPFS uses SHA256 hashes also, but this is partly due to the fact that there is ample hardware to accelerate this hash function and the security of the identity of IPFS data is not as monetarily important as cryptocurrency.
+
+Once the hashes are generated, we create a small code generator that prints them to the console in the test. We will explain that in a minute. For now just copy this code as it is into `pkg/based32/based32_test.go` and then afterwards we will explain more.
+
+```go
+package based32
+
+import (
+    "encoding/binary"
+    "encoding/hex"
+    "fmt"
+    "lukechampine.com/blake3"
+    "math/rand"
+    "testing"
+)
+
+const (
+    seed    = 1234567890
+    numKeys = 32
+)
+
+func TestCodec(t *testing.T) {
+
+    // Generate 10 pseudorandom 64 bit values. We do this here rather than
+    // pre-generating this separately as ultimately it is the same thing, the
+    // same seed produces the same series of pseudorandom values, and the hashes
+    // of these values are deterministic.
+    rand.Seed(seed)
+    seeds := make([]uint64, numKeys)
+    for i := range seeds {
+
+        seeds[i] = rand.Uint64()
+    }
+
+    // Convert the uint64 values to 8 byte long slices for the hash function.
+    seedBytes := make([][]byte, numKeys)
+    for i := range seedBytes {
+
+        seedBytes[i] = make([]byte, 8)
+        binary.LittleEndian.PutUint64(seedBytes[i], seeds[i])
+    }
+
+    // Generate hashes from the seeds
+    hashedSeeds := make([][]byte, numKeys)
+
+    // Uncomment lines relating to this variable to regenerate expected data
+    // that will log to console during test run.
+    generated := "\nexpected := []string{\n"
+
+    for i := range hashedSeeds {
+
+        hashed := blake3.Sum256(seedBytes[i])
+        hashedSeeds[i] = hashed[:]
+
+        generated += fmt.Sprintf("\t\"%x\",\n", hashedSeeds[i])
+    }
+
+    generated += "}\n"
+    t.Log(generated)
+
+    expected := []string{
+        "7bf4667ea06fe57687a7c0c8aae869db103745a3d8c5dce5bf2fc6206d3b97e4",
+        "84c0ee2f49bfb26f48a78c9d048bb309a006db4c7991ebe4dd6dc3f2cc1067cd",
+        "206a953c4ba4f79ffe3d3a452214f19cb63e2895866cc27c7cf6a4ec8fe5a7a6",
+        "35d64c401829c621624fe9d4f134c24ae909ecf4f07ec4540ffd58911f427d03",
+        "573d6989a2c2994447b4669ae6931f12e73c8744e9f65451918a1f3d8cd39aa1",
+        "2b08aea58cc1d680de0e7acadc027ebe601f923ff9d5536c6f73e2559a1b6b14",
+        "bcc3256005da59b06f69b4c1cc62c89af041f8cd5ad79b81351fbfbbaf2cc60f",
+        "42a0f7b9aef1cdc0b3f2a1fd0fb547fb76e5eb50f4f5a6646ee8929fdfef5db7",
+        "50e1cb9f5f8d5325e18298faeeea7fd93d83e3bd518299e7150c1f548c11ddc8",
+        "22a70a74ccfd61a47576150f968039cfeb33143ec549dfeb6c95afc8a6d3d75a",
+        "cd1b21bd745e122f0db1f5ca4e4cbe0bace8439112d519e5b9c0a44a2648a61a",
+        "9ec4bd670b053e722d9d5bc3c2aca4a1d64858ef53c9b58a9222081dc1eeb017",
+        "d85713c898f2fc95d282b58a0ea475c1b1726f8be44d2f17c3c675ce688e1563",
+        "875baee7e9a372fe3bad1fbf0e2e4119038c1ed53302758fc5164b012e927766",
+        "7de94ca668463db890478d8ba3bbed35eb7666ac0b8b4e2cb808c1cbb754576f",
+        "159469150dc41ebd2c2bfafb84aef221769699013b70068444296169dc9e93be",
+        "a90a104ea470df61d337c51589b520454acbd05ef5bbe7d2a8285043a222bec9",
+        "a835de5206f6dbef6a2cb3da66ffb99a19bfa4e005208ffdb316ce880132297e",
+        "f6a09e8f41231febd1b25c52cb73ea438ac803db77d5549db4e15a32e804de9f",
+        "074c59cce7783042cc6941c849206582ecc43028d1576d00e02d95b1e669bf7a",
+        "203c3566724c229b570f33be994cd6094e1a64f3df552f1390b4c2adc7e36d6d",
+        "efec32d52a17ed75ad5a486ba621e0f47f61e4e60557129fce728a1bb63208fd",
+        "9cc2962fc62fe40f6197a4fb81356717fd57b4c988641bca3a9d45efde893894",
+        "2adf211300632bb5f650202bf128ba9187ec2c6c738431dc396d93b8f62bd590",
+        "0782aade40d0ae7a293bfb67016466682d858b5226eaaa8df2f2104fa6c408c3",
+        "d011ad5550f3f03caa469fa233f553721e6af84f1341d256cefe052d85397637",
+        "83deb64f5c134d108e8b99c8a196b8d04228acfc810c33711d975400fa731508",
+        "d9a4b19142d015fd541f50f18f41b7e9738a30c59a3e914b4d4d1556c75786f2",
+        "3e05940b76735ea114db8b037dece53090765510c9c4e55a0be18cb8aef754fa",
+        "41f43119041dd1f3a250f54768ce904808cd0d7bb7b37697803ed2940c39a555",
+        "a2c2d7cb980c2b57c8fdfae55cf4c6040eaf8163b21072877e5e57349388d59c",
+        "02155c589e5bd89ce806a33c1841fe1e157171222701d515263acd0254208a39",
+    }
+
+    for i := range hashedSeeds {
+
+        if expected[i] != hex.EncodeToString(hashedSeeds[i]) {
+
+            t.Log("failed", i, "expected", expected[1], "found", hashedSeeds)
+            t.FailNow()
+        }
+    }
+}
+```
+
+First thing to explain is how tests are constructed.
+
+1. The filename should be named the same as the code it tests, in general, the code we are testing is in `based32.go` and so the convention is the test for this source code should be `based32_test.go`. 
+2. The signature of a test function should be `func TestSomething(t *testing.T) `where "Something" is the name of the type with the methods we are testing, or the specific name of the methods of the type we are testing, or something along these lines. It is not mandatory to use existing names, but it is recommended.
+
+#### Running the tests
+
+To run the tests, you simply need to designate the package folder where the tests you want to run are living:
+
+    davidvennik@pop-os:~/src/github.com/quanterall/kitchensink/steps/step5$ go test ./pkg/based32/
+    ok      github.com/quanterall/kitchensink/steps/step5/pkg/based32       (cached)
+
+Note the `./` in front of the folder. This means "in the current directory" in Unix file path convention, and the reason why we have to specify it is because otherwise, the `go` tool expects to be given a network path like `github.com/quanterall/kitchensink/pkg/based32` which would then clone the repository, or use a cached version, and then run the tests in that directory for you.
+
+#### Enabling logging in the tests
+
+In order to update automatically generated, deterministic data like we are using in this test, we need the test to print out the data that it should be generating, according to what we believe is correct code. 
+
+If you ran the command as above in the previous section, you would have seen that it passed, assuming you didn't mess up the code while copy and pasting it.
+
+However, as you will know if you read closely in the text, there is a section of the code that invokes `t.Log()` which as you would expect, will print something to the terminal. To make this happen, you use the `-v` flag after the subcommand `test`.
+
+#### The Go tool recursive descent notation
+
+Before we go any further, we will introduce a special path notation that the `go` tool understands that automatically recursively descends a filesystem hierarchy from a given starting point.
+
+    ./...
+
+This means, from the given path `./` which means the current working directory, to recursively descend into the folders and run the operation requested on each relevant file encountered.
+
+In old unix file commands, there is disagreement between numerous different commands how to indicate to perform this operation. For `ls` it is `-r`, for `cp` it is `-r` but for `scp` (SSH copy) it is `-R`. 
+
+To make things more consistent and some 'grandfatherly' guidance from the guys who actually first invented Unix (Ken Thompson and Rob Pike were both involved in the original invention of Unix at Bell Labs, Pike was mostly involved with documenting the C language), the Go tool introduces the `...` path to indicate the same thing. 
+
+Go programmers pretty much like using it whenever they make tools to do this sort of thing, and in Go the recursive descent of filesystems is a single function that you load with a closure.
+
+#### Running the tests with logging and recursive descent
+
+Since when you are doing tests, most of the time the codebase is not big enough to be specific, this can be memorised as the one main way to run tests on a Go repository.
+
+    go test -v ./...
+
+and you will get a result like this on the current repository you are working on:
+
+```
+davidvennik@pop-os:~/src/github.com/quanterall/kitchensink/steps/step5$ go test -v ./...
+?       github.com/quanterall/kitchensink/steps/step5   [no test files]
+=== RUN   TestCodec
+    based32_test.go:54: 
+        expected := []string{
+                "7bf4667ea06fe57687a7c0c8aae869db103745a3d8c5dce5bf2fc6206d3b97e4",
+                "84c0ee2f49bfb26f48a78c9d048bb309a006db4c7991ebe4dd6dc3f2cc1067cd",
+                "206a953c4ba4f79ffe3d3a452214f19cb63e2895866cc27c7cf6a4ec8fe5a7a6",
+                "35d64c401829c621624fe9d4f134c24ae909ecf4f07ec4540ffd58911f427d03",
+                "573d6989a2c2994447b4669ae6931f12e73c8744e9f65451918a1f3d8cd39aa1",
+                "2b08aea58cc1d680de0e7acadc027ebe601f923ff9d5536c6f73e2559a1b6b14",
+                "bcc3256005da59b06f69b4c1cc62c89af041f8cd5ad79b81351fbfbbaf2cc60f",
+                "42a0f7b9aef1cdc0b3f2a1fd0fb547fb76e5eb50f4f5a6646ee8929fdfef5db7",
+                "50e1cb9f5f8d5325e18298faeeea7fd93d83e3bd518299e7150c1f548c11ddc8",
+                "22a70a74ccfd61a47576150f968039cfeb33143ec549dfeb6c95afc8a6d3d75a",
+                "cd1b21bd745e122f0db1f5ca4e4cbe0bace8439112d519e5b9c0a44a2648a61a",
+                "9ec4bd670b053e722d9d5bc3c2aca4a1d64858ef53c9b58a9222081dc1eeb017",
+                "d85713c898f2fc95d282b58a0ea475c1b1726f8be44d2f17c3c675ce688e1563",
+                "875baee7e9a372fe3bad1fbf0e2e4119038c1ed53302758fc5164b012e927766",
+                "7de94ca668463db890478d8ba3bbed35eb7666ac0b8b4e2cb808c1cbb754576f",
+                "159469150dc41ebd2c2bfafb84aef221769699013b70068444296169dc9e93be",
+                "a90a104ea470df61d337c51589b520454acbd05ef5bbe7d2a8285043a222bec9",
+                "a835de5206f6dbef6a2cb3da66ffb99a19bfa4e005208ffdb316ce880132297e",
+                "f6a09e8f41231febd1b25c52cb73ea438ac803db77d5549db4e15a32e804de9f",
+                "074c59cce7783042cc6941c849206582ecc43028d1576d00e02d95b1e669bf7a",
+                "203c3566724c229b570f33be994cd6094e1a64f3df552f1390b4c2adc7e36d6d",
+                "efec32d52a17ed75ad5a486ba621e0f47f61e4e60557129fce728a1bb63208fd",
+                "9cc2962fc62fe40f6197a4fb81356717fd57b4c988641bca3a9d45efde893894",
+                "2adf211300632bb5f650202bf128ba9187ec2c6c738431dc396d93b8f62bd590",
+                "0782aade40d0ae7a293bfb67016466682d858b5226eaaa8df2f2104fa6c408c3",
+                "d011ad5550f3f03caa469fa233f553721e6af84f1341d256cefe052d85397637",
+                "83deb64f5c134d108e8b99c8a196b8d04228acfc810c33711d975400fa731508",
+                "d9a4b19142d015fd541f50f18f41b7e9738a30c59a3e914b4d4d1556c75786f2",
+                "3e05940b76735ea114db8b037dece53090765510c9c4e55a0be18cb8aef754fa",
+                "41f43119041dd1f3a250f54768ce904808cd0d7bb7b37697803ed2940c39a555",
+                "a2c2d7cb980c2b57c8fdfae55cf4c6040eaf8163b21072877e5e57349388d59c",
+                "02155c589e5bd89ce806a33c1841fe1e157171222701d515263acd0254208a39",
+        }
+        
+--- PASS: TestCodec (0.00s)
+PASS
+ok      github.com/quanterall/kitchensink/steps/step5/pkg/based32       0.002s
+?       github.com/quanterall/kitchensink/steps/step5/pkg/codecer       [no test files]
+?       github.com/quanterall/kitchensink/steps/step5/pkg/proto [no test files]
+```
+
+And now, as you can see, our test passes, and if you look a little closer, you can see that not only does the test pass, you also see the output here is identical to a section of the code we just entered.
+
+The reason for that, is that we want to use this property to enable us to create, automatically, a decent swathe of test inputs to use for the tests, and all we have written right now is a test that makes sure and demonstrates that the random function does indeed generate completely deterministic values, as does the hash function that we feed these deterministic values.
+
+We don't need to test the values are identical, because they have to be, by their definition, as does the hash, so we use the hash values, as from these we can generate a set of tests that make sure our implementation of `Codec` works as it is supposed to be.
