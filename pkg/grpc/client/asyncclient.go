@@ -208,9 +208,16 @@ func (b *b32c) Decode(stream proto.Transcriber_DecodeClient) (err error) {
 	return
 }
 
+// Start up the client. Call b.Cancel() to stop.
+//
+// The returned send and recv functions are async by default
+// but can be used synchronously by receiving from them directly:
+//
+//     encRes := <-enc(req)
+//     decRes := <-dec(req)
 func (b *b32c) Start() (
-	send func(*proto.EncodeRequest) *proto.EncodeResponse,
-	recv func(*proto.DecodeRequest) *proto.DecodeResponse,
+	enc func(*proto.EncodeRequest) chan *proto.EncodeResponse,
+	dec func(*proto.DecodeRequest) chan *proto.DecodeResponse,
 ) {
 
 	go func() {
@@ -226,15 +233,15 @@ func (b *b32c) Start() (
 		}
 	}()
 
-	return func(req *proto.EncodeRequest) *proto.EncodeResponse {
-			r := NewEncReq(req)
-			b.encChan <- r
-			return <-r.Res
-		},
-		func(req *proto.DecodeRequest) *proto.DecodeResponse {
-			r := NewDecReq(req)
-			b.decChan <- r
-			return <-r.Res
-		}
-
+	enc = func(req *proto.EncodeRequest) chan *proto.EncodeResponse {
+		r := NewEncReq(req)
+		b.encChan <- r
+		return r.Res
+	}
+	dec = func(req *proto.DecodeRequest) chan *proto.DecodeResponse {
+		r := NewDecReq(req)
+		b.decChan <- r
+		return r.Res
+	}
+	return
 }
