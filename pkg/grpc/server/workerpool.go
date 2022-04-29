@@ -39,7 +39,8 @@ func NewWorkerPool(workers uint32, stop chan struct{}) *transcriber {
 		wait:         sync.WaitGroup{},
 	}
 
-	// Create a channel for each worker to send and receive on
+	// Create a channel for each worker to send and receive on, buffer them by
+	// the same as the number of workers, producing workers^2 job slots
 	for i := uint32(0); i < workers; i++ {
 		t.encode[i] = make(chan *proto.EncodeRequest)
 		t.decode[i] = make(chan *proto.DecodeRequest)

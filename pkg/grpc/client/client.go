@@ -23,7 +23,8 @@ type Transcribe struct {
 func New(serverAddr string) (c *Transcribe, disconnect func()) {
 
 	// Dial the configured server address
-	conn, err := grpc.Dial(serverAddr,
+	conn, err := grpc.Dial(
+		serverAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
@@ -54,7 +55,7 @@ func New(serverAddr string) (c *Transcribe, disconnect func()) {
 	// Call the returned disconnect() to stop the client.
 	return c, func() {
 
-		// shut down the cancel context
+		// shut down the Cancel context
 		cancel()
 
 		// close the connection

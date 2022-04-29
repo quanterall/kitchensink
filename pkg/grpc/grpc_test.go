@@ -29,19 +29,22 @@ func TestGRPC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encRes, err := cli.Encode(&protos.EncodeRequest{
-		Data: test1,
-	},
+	encRes, err := cli.Encode(
+		&protos.EncodeRequest{
+			Data: test1,
+		},
 	)
-	decRes, err := cli.Decode(&protos.DecodeRequest{
-		EncodedString: encRes.GetEncodedString(),
-	},
+	decRes, err := cli.Decode(
+		&protos.DecodeRequest{
+			EncodedString: encRes.GetEncodedString(),
+		},
 	)
 
 	disconnect()
 	stopSrvr()
 	if string(test1) != string(decRes.GetData()) {
-		t.Fatalf("failed output equals input test: got %x expected %x",
+		t.Fatalf(
+			"failed output equals input test: got %x expected %x",
 			test1, decRes.GetData(),
 		)
 	}
@@ -189,16 +192,18 @@ func TestGRPCCodec(t *testing.T) {
 		// uniform original data. As such, this will be accounted for in the
 		// check by truncating the same amount in the check (times two, for the
 		// hex encoding of the string).
-		encRes, err := cli.Encode(&protos.EncodeRequest{
-			Data: hashedSeeds[i][:len(hashedSeeds[i])-i%5],
-		},
+		encRes, err := cli.Encode(
+			&protos.EncodeRequest{
+				Data: hashedSeeds[i][:len(hashedSeeds[i])-i%5],
+			},
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		encode := encRes.GetEncodedString()
 		if encode != encodedStr[i] {
-			t.Fatalf("Decode failed, expected '%s' got '%s'",
+			t.Fatalf(
+				"Decode failed, expected '%s' got '%s'",
 				encodedStr, encode,
 			)
 		}
@@ -213,9 +218,10 @@ func TestGRPCCodec(t *testing.T) {
 
 	for i := range encodedStr {
 
-		res, err := cli.Decode(&protos.DecodeRequest{
-			EncodedString: encodedStr[i],
-		},
+		res, err := cli.Decode(
+			&protos.DecodeRequest{
+				EncodedString: encodedStr[i],
+			},
 		)
 		// res, err := Codec.Decode(encodedStr[i])
 		if err != nil {
@@ -226,7 +232,8 @@ func TestGRPCCodec(t *testing.T) {
 		expectedHex := expected[i][:elen-etrimlen]
 		resHex := fmt.Sprintf("%x", res.GetData())
 		if resHex != expectedHex {
-			t.Fatalf("got: '%s' expected: '%s'",
+			t.Fatalf(
+				"got: '%s' expected: '%s'",
 				resHex,
 				expectedHex,
 			)
@@ -235,4 +242,37 @@ func TestGRPCCodec(t *testing.T) {
 
 	disconnect()
 	stopSrvr()
+}
+
+// MakeLongMessage creates a message by concatenating a collection of hex
+// encoded strings into one, and then repeating the concatenation with the
+// resultant bytes for the number of given repetitions
+func MakeLongMessage(repetitions int, input []string) (output []byte) {
+	totalLen := 0
+	// Accumulate the length of all the strings, each character of the string
+	// represents 4 bytes so the byte length is half of this
+	for i := range input {
+		totalLen += len(input[i]) / 2
+	}
+	// Make one repetition as a single slice
+	oneRep := make([]byte, totalLen)
+	cursor := 0
+	for i := range input {
+		bytes, err := hex.DecodeString(input[i])
+		if err != nil {
+			panic("something wrong with input")
+		}
+		bLen := len(bytes)
+		copy(oneRep[cursor:cursor+bLen], bytes)
+		cursor += bLen
+	}
+	// Copy the single repetition over and over onto a buffer of this size times
+	// the number of repetitions requested
+	output = make([]byte, totalLen*repetitions)
+	cursor = 0
+	for reps := 0; reps < repetitions; reps++ {
+		copy(output[cursor:cursor+totalLen], oneRep)
+		cursor += totalLen
+	}
+	return
 }
