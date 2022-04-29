@@ -80,7 +80,7 @@ type EncodeRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	IdNonce uint64 `protobuf:"varint,1,opt,name=IdNonce,proto3" json:"IdNonce,omitempty"`
+	IdNonce uint64 `protobuf:"varint,1,opt,name=idNonce,proto3" json:"idNonce,omitempty"`
 	Data    []byte `protobuf:"bytes,2,opt,name=Data,proto3" json:"Data,omitempty"`
 }
 
@@ -135,7 +135,7 @@ type EncodeResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	IdNonce uint64 `protobuf:"varint,1,opt,name=IdNonce,proto3" json:"IdNonce,omitempty"`
+	IdNonce uint64 `protobuf:"varint,1,opt,name=idNonce,proto3" json:"idNonce,omitempty"`
 	// Types that are assignable to Encoded:
 	//	*EncodeResponse_EncodedString
 	//	*EncodeResponse_Error
@@ -223,7 +223,7 @@ type DecodeRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	IdNonce       uint64 `protobuf:"varint,1,opt,name=IdNonce,proto3" json:"IdNonce,omitempty"`
+	IdNonce       uint64 `protobuf:"varint,1,opt,name=idNonce,proto3" json:"idNonce,omitempty"`
 	EncodedString string `protobuf:"bytes,2,opt,name=EncodedString,proto3" json:"EncodedString,omitempty"`
 }
 
@@ -278,7 +278,7 @@ type DecodeResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	IdNonce uint64 `protobuf:"varint,1,opt,name=IdNonce,proto3" json:"IdNonce,omitempty"`
+	IdNonce uint64 `protobuf:"varint,1,opt,name=idNonce,proto3" json:"idNonce,omitempty"`
 	// Types that are assignable to Decoded:
 	//	*DecodeResponse_Data
 	//	*DecodeResponse_Error

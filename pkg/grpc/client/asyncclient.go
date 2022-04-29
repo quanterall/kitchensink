@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/quanterall/kitchensink/pkg/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -15,6 +16,7 @@ type EncReq struct {
 }
 
 func NewEncReq(req *proto.EncodeRequest) EncReq {
+	req.IdNonce = uint64(time.Now().UnixNano())
 	return EncReq{Req: req, Res: make(chan *proto.EncodeResponse)}
 }
 
@@ -24,6 +26,7 @@ type DecReq struct {
 }
 
 func NewDecReq(req *proto.DecodeRequest) DecReq {
+	req.IdNonce = uint64(time.Now().UnixNano())
 	return DecReq{Req: req, Res: make(chan *proto.DecodeResponse)}
 }
 
@@ -42,7 +45,7 @@ type b32c struct {
 	proto.TranscriberClient
 }
 
-func NewClient(serverAddr string, timeout time.Duration) (
+func New(serverAddr string, timeout time.Duration) (
 	client *b32c, err error,
 ) {
 
@@ -127,16 +130,30 @@ func (b *b32c) Encode(stream proto.Transcriber_EncodeClient) (err error) {
 				// Any error is terminal here, so return it to the caller after
 				// logging it
 				log.Println(err)
+				break
 			}
+			log.Print(spew.Sdump(recvd))
 			for i := range b.waitingEnc {
 
-				// Check for expired responses
-				if i.Add(b.timeout).After(time.Now()) {
-					delete(b.waitingEnc, i)
-				}
+				log.Print(spew.Sdump(b.waitingEnc[i].Req))
+
+				// // Check for expired responses
+				// if i.Add(b.timeout).After(time.Now()) {
+				//
+				//     log.Print(
+				//         "expiring",
+				//         i,
+				//         b.timeout,
+				//         i.Add(b.timeout),
+				//
+				//         spew.Sdump(b.waitingEnc[i]),
+				//     )
+				//     delete(b.waitingEnc, i)
+				// }
 
 				// Return received responses
-				if recvd.IdNonce == b.waitingEnc[i].Req.IdNonce {
+				if recvd.IdNonce ==
+					b.waitingEnc[i].Req.IdNonce {
 					b.waitingEnc[i].Res <- recvd
 					delete(b.waitingEnc, i)
 				}
@@ -188,6 +205,7 @@ func (b *b32c) Decode(stream proto.Transcriber_DecodeClient) (err error) {
 				// Any error is terminal here, so return it to the caller after
 				// logging it
 				log.Println(err)
+				break
 			}
 			for i := range b.waitingEnc {
 

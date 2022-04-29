@@ -64,8 +64,9 @@ out:
 			t.encCallCount.Inc()
 			res, err := based32.Codec.Encode(msg.Data)
 			t.encodeRes[worker] <- proto.EncodeRes{
-				String: res,
-				Error:  err,
+				IdNonce: msg.IdNonce,
+				String:  res,
+				Error:   err,
 			}
 
 		case msg := <-t.decode[worker]:
@@ -74,8 +75,9 @@ out:
 
 			bytes, err := based32.Codec.Decode(msg.EncodedString)
 			t.decodeRes[worker] <- proto.DecodeRes{
-				Bytes: bytes,
-				Error: err,
+				IdNonce: msg.IdNonce,
+				Bytes:   bytes,
+				Error:   err,
 			}
 
 		case <-t.stop:
