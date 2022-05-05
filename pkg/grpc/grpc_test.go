@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"github.com/quanterall/kitchensink/pkg/grpc/client"
 	"github.com/quanterall/kitchensink/pkg/grpc/server"
-	protos "github.com/quanterall/kitchensink/pkg/proto"
+	"github.com/quanterall/kitchensink/pkg/proto"
 	"net"
 	"testing"
 	"time"
@@ -33,13 +33,16 @@ func TestGRPC(t *testing.T) {
 	}
 	t.Log("encoding")
 	encRes := <-enc(
-		&protos.EncodeRequest{
+		&proto.EncodeRequest{
 			Data: test1,
 		},
 	)
+
+	t.Log(encRes.GetEncodedString())
+
 	t.Log("decoding")
 	decRes := <-dec(
-		&protos.DecodeRequest{
+		&proto.DecodeRequest{
 			EncodedString: encRes.GetEncodedString(),
 		},
 	)
@@ -196,7 +199,7 @@ const (
 // 		// check by truncating the same amount in the check (times two, for the
 // 		// hex encoding of the string).
 // 		encRes, err := cli.Encode(
-// 			&protos.EncodeRequest{
+// 			&proto.EncodeRequest{
 // 				Data: hashedSeeds[i][:len(hashedSeeds[i])-i%5],
 // 			},
 // 		)
@@ -222,7 +225,7 @@ const (
 // 	for i := range encodedStr {
 //
 // 		res, err := cli.Decode(
-// 			&protos.DecodeRequest{
+// 			&proto.DecodeRequest{
 // 				EncodedString: encodedStr[i],
 // 			},
 // 		)

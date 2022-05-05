@@ -2,11 +2,9 @@ package client
 
 import (
 	"context"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/quanterall/kitchensink/pkg/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"io"
 	"time"
 )
 
@@ -89,143 +87,6 @@ func New(serverAddr string, timeout time.Duration) (
 	return
 }
 
-func (b *b32c) Encode(stream proto.Transcriber_EncodeClient) (err error) {
-
-	go func(stream proto.Transcriber_EncodeClient) {
-	out:
-		for {
-			select {
-			case <-b.stop:
-				break out
-			case msg := <-b.encChan:
-				err := stream.Send(msg.Req)
-				if err != nil {
-					log.Print(err)
-				}
-				b.waitingEnc[time.Now()] = msg
-			}
-		}
-	}(stream)
-
-	go func(stream proto.Transcriber_EncodeClient) {
-	in:
-		for {
-
-			// check whether it's shutdown time first
-			select {
-			case <-b.stop:
-				break in
-			default:
-			}
-
-			// Wait for and load in a newly received message
-			recvd, err := stream.Recv()
-			switch {
-			case err == io.EOF:
-
-				// The client has broken the connection, so we can quit
-				break in
-			case err != nil:
-
-				// Any error is terminal here, so return it to the caller after
-				// logging it
-				log.Println(err)
-				break
-			}
-			log.Print(spew.Sdump(recvd))
-			for i := range b.waitingEnc {
-
-				log.Print(spew.Sdump(b.waitingEnc[i].Req))
-
-				// // Check for expired responses
-				// if i.Add(b.timeout).After(time.Now()) {
-				//
-				//     log.Print(
-				//         "expiring",
-				//         i,
-				//         b.timeout,
-				//         i.Add(b.timeout),
-				//
-				//         spew.Sdump(b.waitingEnc[i]),
-				//     )
-				//     delete(b.waitingEnc, i)
-				// }
-
-				// Return received responses
-				if recvd.IdNonce ==
-					b.waitingEnc[i].Req.IdNonce {
-					b.waitingEnc[i].Res <- recvd
-					delete(b.waitingEnc, i)
-				}
-			}
-		}
-	}(stream)
-
-	return
-}
-
-func (b *b32c) Decode(stream proto.Transcriber_DecodeClient) (err error) {
-
-	go func(stream proto.Transcriber_DecodeClient) {
-	out:
-		for {
-			select {
-			case <-b.stop:
-				break out
-			case msg := <-b.decChan:
-				err := stream.Send(msg.Req)
-				if err != nil {
-					log.Print(err)
-				}
-				b.waitingDec[time.Now()] = msg
-			}
-		}
-	}(stream)
-
-	go func(stream proto.Transcriber_DecodeClient) {
-	in:
-		for {
-
-			// check whether it's shutdown time first
-			select {
-			case <-b.stop:
-				break in
-			default:
-			}
-
-			// Wait for and load in a newly received message
-			recvd, err := stream.Recv()
-			switch {
-			case err == io.EOF:
-
-				// The client has broken the connection, so we can quit
-				break in
-			case err != nil:
-
-				// Any error is terminal here, so return it to the caller after
-				// logging it
-				log.Println(err)
-				break
-			}
-			for i := range b.waitingEnc {
-
-				// Check for expired responses
-				if i.Add(b.timeout).After(time.Now()) {
-					delete(b.waitingDec, i)
-				}
-
-				// Return received responses
-				if recvd.IdNonce == b.waitingEnc[i].Req.IdNonce {
-					b.waitingDec[i].Res <- recvd
-					delete(b.waitingDec, i)
-				}
-			}
-		}
-	}(stream)
-
-	return
-}
-
 // Start up the client. Call b.Cancel() to stop.
 //
 // The returned send and recv functions are async by default
@@ -239,13 +100,16 @@ func (b *b32c) Start() (
 ) {
 
 	go func() {
-		err := b.Encode(b.enc)
+		log.Println("starting decoder")
+		err := b.Decode(b.dec)
 		if err != nil {
 			log.Print(err)
 		}
 	}()
+
 	go func() {
-		err := b.Decode(b.dec)
+		log.Println("starting encoder")
+		err := b.Encode(b.enc)
 		if err != nil {
 			log.Print(err)
 		}

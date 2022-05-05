@@ -25,6 +25,8 @@ type b32 struct {
 // New creates a new service handler
 func New(addr *net.TCPAddr, workers uint32) (b *b32) {
 
+	log.Println("creating transcriber service")
+
 	// It would be possible to interlink all of the kill switches in an
 	// application via passing this variable in to the New function, for which
 	// reason in an application, its killswitch has to trigger closing of this
@@ -153,6 +155,10 @@ out:
 
 func (b *b32) Start() (stop func()) {
 
+	proto.RegisterTranscriberServer(b.svr, b)
+
+	log.Println("starting transcriber service")
+
 	cleanup := b.transcriber.Start()
 
 	// Set up a tcp listener for the gRPC service.
@@ -163,7 +169,6 @@ func (b *b32) Start() (stop func()) {
 
 	// This is spawned in a goroutine so we can trigger the shutdown correctly.
 	go func() {
-		proto.RegisterTranscriberServer(b.svr, b)
 		log.Printf("server listening at %v", lis.Addr())
 
 		if err := b.svr.Serve(lis); err != nil {
