@@ -54,7 +54,7 @@ func (b *b32c) Decode(stream proto.Transcriber_DecodeClient) (err error) {
 			log.Print(spew.Sdump(recvd))
 			for i := range b.waitingDec {
 
-				log.Print(spew.Sdump(b.waitingEnc[i].Req))
+				log.Print(spew.Sdump(b.waitingDec[i].Req))
 
 				// Check for expired responses
 				if i.Add(b.timeout).Before(time.Now()) {

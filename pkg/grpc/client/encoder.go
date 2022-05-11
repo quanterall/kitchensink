@@ -50,10 +50,10 @@ func (b *b32c) Encode(stream proto.Transcriber_EncodeClient) (err error) {
 				log.Println(err)
 				break
 			}
-			log.Print(spew.Sdump(recvd))
+			// log.Print(spew.Sdump(recvd))
 			for i := range b.waitingEnc {
 
-				log.Print(spew.Sdump(b.waitingEnc[i].Req))
+				// log.Print(spew.Sdump(b.waitingEnc[i].Req))
 
 				// Check for expired responses
 				if i.Add(b.timeout).Before(time.Now()) {
