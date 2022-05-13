@@ -30,7 +30,9 @@ func NewDecReq(req *proto.DecodeRequest) DecReq {
 
 type b32c struct {
 	encChan    chan EncReq
+	encRes     chan *proto.EncodeResponse
 	decChan    chan DecReq
+	decRes     chan *proto.DecodeResponse
 	enc        proto.Transcriber_EncodeClient
 	dec        proto.Transcriber_DecodeClient
 	stop       <-chan struct{}
@@ -71,7 +73,9 @@ func New(serverAddr string, timeout time.Duration) (
 
 	client = &b32c{
 		encChan:           make(chan EncReq),
+		encRes:            make(chan *proto.EncodeResponse),
 		decChan:           make(chan DecReq),
+		decRes:            make(chan *proto.DecodeResponse),
 		enc:               encode,
 		dec:               decode,
 		stop:              ctx.Done(),

@@ -111,6 +111,8 @@ func (t *transcriber) Start() (cleanup func()) {
 
 	return func() {
 
+		log.Println("cleanup called")
+
 		// Wait until all have stopped.
 		t.wait.Wait()
 

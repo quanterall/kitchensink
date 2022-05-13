@@ -82,13 +82,16 @@ out:
 
 		worker := b.roundRobin.Load()
 		go func(worker uint32) {
-			// log.Printf("worker %d", worker)
+			log.Printf("worker %d starting", worker)
 			b.transcriber.encode[worker] <- in
+			log.Printf("worker %d encoding", worker)
 			res := <-b.transcriber.encodeRes[worker]
+			log.Printf("worker %d sending", worker)
 			err = stream.Send(proto.CreateEncodeResponse(res))
 			if err != nil {
 				log.Printf("Error sending response on stream: %s", err)
 			}
+			log.Printf("worker %d sent", worker)
 		}(worker)
 		if worker >= b.workers {
 			worker = 0
@@ -98,6 +101,7 @@ out:
 			b.roundRobin.Inc()
 		}
 	}
+	log.Println("encode service stopping normally")
 	return nil
 }
 
@@ -150,6 +154,8 @@ out:
 			b.roundRobin.Inc()
 		}
 	}
+
+	log.Println("decode service stopping normally")
 	return nil
 }
 
@@ -205,6 +211,8 @@ func (b *b32) Start() (stop func()) {
 			select {
 			case <-b.stop:
 
+				log.Println("stopping service")
+
 				// This is the proper way to stop the gRPC server, which will
 				// end the next goroutine spawned just above correctly.
 				b.svr.GracefulStop()
@@ -217,5 +225,8 @@ func (b *b32) Start() (stop func()) {
 	// The stop signal is triggered when this function is called, which triggers
 	// the graceful stop of the server, and terminates the two goroutines above
 	// cleanly.
-	return func() { close(b.stop) }
+	return func() {
+		log.Printf("stop called on service")
+		close(b.stop)
+	}
 }
