@@ -25,7 +25,7 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srvr := server.New(addr, 8)
+	srvr := server.New(addr, 128)
 	stopSrvr := srvr.Start()
 
 	cli, err := client.New(defaultAddr, time.Second*5)
@@ -159,23 +159,24 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	var longMessages [][]byte
 
 	for i := range expected {
+		for j := 0; j < 2; j++ {
+			longMessages = append(
+				longMessages,
+				MakeLongMessage(
+					// the longer messages first to ensure there will be out of
+					// order returns, and gradually shorter long messages to ensure
+					// the parallel processing will get quite disordered
+					2,
 
-		longMessages = append(
-			longMessages,
-			MakeLongMessage(
-				// the longer messages first to ensure there will be out of
-				// order returns, and gradually shorter long messages to ensure
-				// the parallel processing will get quite disordered
-				3,
-
-				append(
-					expected[0:i], expected[i:]...,
+					append(
+						expected[0:i], expected[i:]...,
+					),
 				),
-			),
-		)
+			)
 
-		// every second message will be the short messages already generated
-		longMessages = append(longMessages, hashedSeeds[i])
+			// every second message will be the short messages already generated
+			longMessages = append(longMessages, hashedSeeds[i])
+		}
 	}
 
 	var o string
