@@ -166,7 +166,7 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 				// the longer messages first to ensure there will be out of
 				// order returns, and gradually shorter long messages to ensure
 				// the parallel processing will get quite disordered
-				4,
+				3,
 
 				append(
 					expected[0:i], expected[i:]...,
