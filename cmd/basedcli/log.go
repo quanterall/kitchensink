@@ -5,4 +5,4 @@ import (
 	"os"
 )
 
-var log = logg.New(os.Stderr, "basedcli ", logg.Llongfile)
+var log = logg.New(os.Stderr, "basedcli", logg.Llongfile|logg.Lmicroseconds)

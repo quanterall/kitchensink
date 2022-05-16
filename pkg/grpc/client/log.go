@@ -5,4 +5,4 @@ import (
 	"os"
 )
 
-var log = logg.New(os.Stderr, "based32 ", logg.Llongfile)
+var log = logg.New(os.Stderr, "based32", logg.Llongfile|logg.Lmicroseconds)
