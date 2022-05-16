@@ -81,18 +81,16 @@ out:
 		}
 
 		worker := b.roundRobin.Load()
-		go func(worker uint32) {
-			log.Printf("worker %d starting", worker)
-			b.transcriber.encode[worker] <- in
-			log.Printf("worker %d encoding", worker)
-			res := <-b.transcriber.encodeRes[worker]
-			log.Printf("worker %d sending", worker)
-			err = stream.Send(proto.CreateEncodeResponse(res))
-			if err != nil {
-				log.Printf("Error sending response on stream: %s", err)
-			}
-			log.Printf("worker %d sent", worker)
-		}(worker)
+		log.Printf("worker %d starting", worker)
+		b.transcriber.encode[worker] <- in
+		log.Printf("worker %d encoding", worker)
+		res := <-b.transcriber.encodeRes[worker]
+		log.Printf("worker %d sending", worker)
+		err = stream.Send(proto.CreateEncodeResponse(res))
+		if err != nil {
+			log.Printf("Error sending response on stream: %s", err)
+		}
+		log.Printf("worker %d sent", worker)
 		if worker >= b.workers {
 			worker = 0
 			b.roundRobin.Store(0)
@@ -137,15 +135,12 @@ out:
 			return err
 		}
 		worker := b.roundRobin.Load()
-		go func(worker uint32) {
-			// log.Printf("worker %d", worker)
-			b.transcriber.decode[worker] <- in
-			res := <-b.transcriber.decodeRes[worker]
-			err := stream.Send(proto.CreateDecodeResponse(res))
-			if err != nil {
-				log.Printf("Error sending response on stream: %s", err)
-			}
-		}(worker)
+		b.transcriber.decode[worker] <- in
+		res := <-b.transcriber.decodeRes[worker]
+		err = stream.Send(proto.CreateDecodeResponse(res))
+		if err != nil {
+			log.Printf("Error sending response on stream: %s", err)
+		}
 		if worker >= b.workers {
 			worker = 0
 			b.roundRobin.Store(0)
@@ -159,6 +154,7 @@ out:
 	return nil
 }
 
+// Start up the transcriber server
 func (b *b32) Start() (stop func()) {
 
 	proto.RegisterTranscriberServer(b.svr, b)

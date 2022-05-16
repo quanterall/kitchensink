@@ -25,7 +25,7 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srvr := server.New(addr, 32)
+	srvr := server.New(addr, 8)
 	stopSrvr := srvr.Start()
 
 	cli, err := client.New(defaultAddr, time.Second*5)
@@ -166,7 +166,7 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 					// the longer messages first to ensure there will be out of
 					// order returns, and gradually shorter long messages to ensure
 					// the parallel processing will get quite disordered
-					2,
+					4,
 
 					append(
 						expected[0:i], expected[i:]...,

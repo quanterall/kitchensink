@@ -1809,7 +1809,7 @@ There is a few explanations that need to be made to start with.
 
 #### When to not export an externally used type
 
-Here is another case where we are not exporting a type that has methods that will be used by other packages that will import this package. The reason is that channels and slices both need initialisation before they can be used, as performing operations on these variables that have not been initialised will cause a `nil` panic. Thus, we instead will export an initialiser function, which will take care of this initialisation for us.
+Here is a case where we are not exporting a type that has methods that will be used by other packages that will import this package. The reason is that channels and slices both need initialisation before they can be used, as performing operations on these variables that have not been initialised will cause a `nil` panic. Thus, we instead will export an initialiser function, which will take care of this initialisation for us.
 
 #### About Channels
 
@@ -1843,10 +1843,10 @@ Now that we have given a brief (as possible) explanation of the elements of the 
 // NewWorkerPool initialises the data structure required to run a worker pool.
 // Call Start to to initiate the run, and call the returned stop function to end
 // it.
-func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
+func NewWorkerPool(workers uint32, stop chan struct{}) *transcriber {
 
-	// Initialize a Transcriber worker pool
-	t := &Transcriber{
+	// Initialize a transcriber worker pool
+	t := &transcriber{
 		stop:         stop,
 		encode:       make([]chan *proto.EncodeRequest, workers),
 		decode:       make([]chan *proto.DecodeRequest, workers),
@@ -1858,7 +1858,8 @@ func NewWorkerPool(workers uint32, stop chan struct{}) *Transcriber {
 		wait:         sync.WaitGroup{},
 	}
 
-	// Create a channel for each worker to send and receive on
+	// Create a channel for each worker to send and receive on, buffer them by
+	// the same as the number of workers, producing workers^2 job slots
 	for i := uint32(0); i < workers; i++ {
 		t.encode[i] = make(chan *proto.EncodeRequest)
 		t.decode[i] = make(chan *proto.DecodeRequest)
@@ -1896,7 +1897,7 @@ We are using the [go.uber.org/atomic](https://pkg.go.dev/go.uber.org/atomic) var
 
 Uber's version is better, because it creates proper initialisers for everything, whereas with the inbuilt `sync/atomic` library we have to boilerplate all that stuff to do it correctly. As I say, in this case, it's just habit as the non-pointer version of `sync.Int32` would serve just as well, but it is rare when one is using atomics that one is only doing such a small and singular thing with it as this, usually it will appear in multiple places protecting exclusive access with nicer syntax than mutexes, and facilitating very fast increment and decrement operations for counters, which is our use case here.
 
-Note that strings are a special case of a data type that is actually a pointer in the underlying implementation, as they are immutable, and their memory area is marked not writeable to the memory management unit which will cause a segmentation fault and halt the program. Thus they are the sole exception for value types in atomic variables, as they are not changeable, there cannot be a read/write race condition. A modified string is a new pointer and implicitly has no conflict with the old one. Though there can be a race condition on the rewriting of the pointer, which is why an atomic string is needed.
+Note that strings are a special case of a data type that is actually a pointer in the underlying implementation, as they are immutable, and their memory area is marked not writeable to the memory management unit which will cause a segmentation fault and halt the program. Thus they are the sole exception for reference types in atomic variables, as they are not changeable, there cannot be a read/write race condition. A modified string is a new pointer and implicitly has no conflict with the old one. Though there can be a race condition on the rewriting of the pointer, which is why an atomic string is needed.
 
 #### Running the Worker Pool
 
@@ -1963,12 +1964,12 @@ There isn't any point in putting the counter in there if it wasn't going to come
 ```go
 // logCallCounts prints the values stored in the encode and decode counter
 // atomic variables.
-func (t *Transcriber) logCallCounts() {
+func (t *transcriber) logCallCounts() {
 
-    log.Printf(
-        "processed %v encodes and %v encodes",
-        t.encCallCount.Load(), t.decCallCount.Load(),
-    )
+	log.Printf(
+		"processed %v encodes and %v encodes",
+		t.encCallCount.Load(), t.decCallCount.Load(),
+	)
 }
 ```
 #### Starting the worker pool
@@ -1977,23 +1978,25 @@ The start function spawns the workers in a loop, calling the `handle` function f
 
 ```go
 // Start up the worker pool.
-func (t *Transcriber) Start() (cleanup func()) {
+func (t *transcriber) Start() (cleanup func()) {
 
-    // Spawn the number of workers configured.
-    for i := uint32(0); i < t.workers; i++ {
+	// Spawn the number of workers configured.
+	for i := uint32(0); i < t.workers; i++ {
 
-        go t.handle(i)
-    }
+		go t.handle(i)
+	}
 
-    return func() {
+	return func() {
 
-        // Wait until all have stopped.
-        t.wait.Wait()
+		log.Println("cleanup called")
 
-        // Log the number of jobs that were done during the run.
-        t.logCallCounts()
+		// Wait until all have stopped.
+		t.wait.Wait()
 
-    }
+		// Log the number of jobs that were done during the run.
+		t.logCallCounts()
+
+	}
 }
 ```
 
@@ -2005,11 +2008,13 @@ The reason why we created the gRPC services as "stream" type will now be reveale
 
 This might be ok for small scale systems, but for larger ones, with potentially high work loads, the management of the concurrency of the work should be done by the server developer as the way to do this can vary quite widely between one type of work and another.
 
+Note that as we will see later, current implementation of stream in the gRPC implementation for Go has a limitation that seems to cause a block with large or numerous requests in a short period of time. Just as the Go implementation has lagged in coverage of features, it also is lagging in stability compared to other language versions, which is unfortunate. Having to add message segmentation or ratelimiting to handle this issue is a big strike against using gRPC if one does not need to support other languages.
+
 With large APIs with lower overall workloads, it is fine to let gRPC handle the scheduling, but since that is easier and doesn't grant an opportunity to teach concurrent programming, the most distinctive feature of Go, we are showing you how to do it yourself. 
 
 Personally, I prefer always handling the concurrency, because no matter how much load my services get, it can be later on when I have no part in the exercise, that someone tries to use my code for a high load scenario and because I wrote it from scratch to be optimal, it will not fail in the hands of anyone. Besides this, having written highly time sensitive multicast services previously, it is now just habit for me to write my own concurrency handling, and once you get used to doing it, you won't like to leave it to others either once you have had your own goroutine leak or two, you won't want to leave it up to chance either.
 
-So, the first thing, as usual, is the controlling data structure for our functionality. In this case, we do something different, creating a type that is not exported. This means that none of the fields can be accessed by external packages, only source code within this same folder, statically.
+As with the worker pool, we are going to create a type that is not exported and export the initialiser due to the necessity of the use of `make()` when using objects within the structure.
 
 In order to support that, we must create a constructor function, here we have `New`, which accepts a network address and the number of worker threads we want to run to handle requests.
 
@@ -2017,8 +2022,10 @@ In order to support that, we must create a constructor function, here we have `N
 package server
 
 import (
+	"github.com/quanterall/kitchensink/pkg/proto"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
+	"io"
 	"net"
 )
 
@@ -2030,7 +2037,7 @@ type b32 struct {
 	proto.UnimplementedTranscriberServer
 	stop        chan struct{}
 	svr         *grpc.Server
-	transcriber *Transcriber
+	transcriber *transcriber
 	addr        *net.TCPAddr
 	roundRobin  atomic.Uint32
 	workers     uint32
@@ -2038,6 +2045,8 @@ type b32 struct {
 
 // New creates a new service handler
 func New(addr *net.TCPAddr, workers uint32) (b *b32) {
+
+	log.Println("creating transcriber service")
 
 	// It would be possible to interlink all of the kill switches in an
 	// application via passing this variable in to the New function, for which
@@ -2057,7 +2066,7 @@ func New(addr *net.TCPAddr, workers uint32) (b *b32) {
 }
 ```
 
-Next, in keeping with our philosophy of ordering our source files in order of declaration, even though it is not mandatory, but for reading, it is, we provide implementations for interfaces created by the `proto` generated gRPC package, that is created from our `.proto` file.
+Next, in keeping with our philosophy of creating our source files in order of declaration, even though it is not mandatory, but for reading, it is, we provide implementations for interfaces created by the `proto` generated gRPC package, that is created from our `.proto` file.
 
 ```protobuf
 service Transcriber {
@@ -2070,19 +2079,9 @@ The method signature is not exactly the same, because "returns" in the protobuf 
 
 But we don't want that, just that we want to be able to handle that concurrency ourselves in Go, by sending the requests to our worker pool and when they return, returning them via the gRPC prescribed response `stream` mechanism.
 
-Our job distribution strategy, as hinted at in the structure definition, is round robin, that is, each job is passed to each worker in sequence, 1, 2, 3, 4, etc. 
+Our job distribution strategy, as hinted at in the structure definition, is round robin, that is, each new job is passed to each worker in sequence, 1, 2, 3, 4, etc. 
 
 The `stream` processing strategy essentially means we have a loop that runs that receives each job as it comes in, and is supposed to process it, and then return it as necessary.
-
-For this reason, you can see in the `go func(worker uint32) {...}` section of each function, the call is run in the background, similar to "async" model, but in this case, if the demands were ridiculously excessive, we could end up with a resource leak with excessive numbers of goroutines spawned to wait for jobs.
-
-We aren't going to worry about that here, but in the case of a highly memory demanding service, we would need to put a cap on this, and there would be an atomic counter that would stall sending requests once the number of in-flight requests were made they would have to clear before further would be processed.
-
-This is an example of a case where there is more than one way to implement the solution. The gRPC library doesn't give all the possible flexibility that a Go program might be able to provide. The algorithm we have defined here spawns goroutines for each task's asynchronous handling, because the stream is a singular entity.
-
-In actual fact, this code could break under extremely high load, by returning out-of-order responses, because the messages do not have a job code attached to them and it is not noted by the client either. It is an unlikely situation but a good illustration of how message ordering could be compromised by variable length processing times on the receiving end and message identity would be essential for this case. 
-
-The code does assume that in spite of the parallel processing, that work will come in, in order, and output will return in the same order, and because the processing is uniform, it will, but this is *not guaranteed*. If a highly variable length of messages to be encoded were put through this structure, you could end up with replies for short messages coming back because long messages took longer to process and with no job number identity you will have an out of order bug.
 
 ```go
 // Encode is our implementation of the encode API call for the incoming stream
@@ -2122,15 +2121,16 @@ out:
         }
 
         worker := b.roundRobin.Load()
-        go func(worker uint32) {
-            // log.Printf("worker %d", worker)
-            b.transcriber.encode[worker] <- in
-            res := <-b.transcriber.encodeRes[worker]
-            err = stream.Send(proto.CreateEncodeResponse(res))
-            if err != nil {
-                log.Printf("Error sending response on stream: %s", err)
-            }
-        }(worker)
+        log.Printf("worker %d starting", worker)
+        b.transcriber.encode[worker] <- in
+        log.Printf("worker %d encoding", worker)
+        res := <-b.transcriber.encodeRes[worker]
+        log.Printf("worker %d sending", worker)
+        err = stream.Send(proto.CreateEncodeResponse(res))
+        if err != nil {
+            log.Printf("Error sending response on stream: %s", err)
+        }
+        log.Printf("worker %d sent", worker)
         if worker >= b.workers {
             worker = 0
             b.roundRobin.Store(0)
@@ -2139,6 +2139,7 @@ out:
             b.roundRobin.Inc()
         }
     }
+    log.Println("encode service stopping normally")
     return nil
 }
 
@@ -2174,15 +2175,12 @@ out:
             return err
         }
         worker := b.roundRobin.Load()
-        go func(worker uint32) {
-            // log.Printf("worker %d", worker)
-            b.transcriber.decode[worker] <- in
-            res := <-b.transcriber.decodeRes[worker]
-            err := stream.Send(proto.CreateDecodeResponse(res))
-            if err != nil {
-                log.Printf("Error sending response on stream: %s", err)
-            }
-        }(worker)
+        b.transcriber.decode[worker] <- in
+        res := <-b.transcriber.decodeRes[worker]
+        err = stream.Send(proto.CreateDecodeResponse(res))
+        if err != nil {
+            log.Printf("Error sending response on stream: %s", err)
+        }
         if worker >= b.workers {
             worker = 0
             b.roundRobin.Store(0)
@@ -2191,7 +2189,93 @@ out:
             b.roundRobin.Inc()
         }
     }
+
+    log.Println("decode service stopping normally")
     return nil
 }
 ```
 
+These handlers can be run concurrently, and each job's identification number will be correctly associated with the requesting goroutine, in the next section.
+
+But first, the last piece of the server, which starts up the threads and manages their shutdown:
+
+```go
+// Start up the transcriber server
+func (b *b32) Start() (stop func()) {
+
+    proto.RegisterTranscriberServer(b.svr, b)
+
+    log.Println("starting transcriber service")
+
+    cleanup := b.transcriber.Start()
+
+    // Set up a tcp listener for the gRPC service.
+    lis, err := net.ListenTCP("tcp", b.addr)
+    if err != nil {
+        log.Fatalf("failed to listen on %v: %v", b.addr, err)
+    }
+
+    // This is spawned in a goroutine so we can trigger the shutdown correctly.
+    go func() {
+        log.Printf("server listening at %v", lis.Addr())
+
+        if err := b.svr.Serve(lis); err != nil {
+
+            // This is where errors returned from Decode and Encode streams end
+            // up.
+            log.Printf("failed to serve: '%v'", err)
+
+            // By the time this happens the second goroutine is running and it
+            // is always better unless you are sure nothing else is running and
+            // part way starting up, to shut it down properly. Closing this
+            // channel terminates the second goroutine which calls the server to
+            // stop, and then the Start function terminates. In this way we can
+            // be sure that nothing will keep running and the user does not have
+            // to use `kill -9` or ctrl-\ on the terminal to end the process.
+            //
+            // If force kill is required, there is a bug in the concurrency and
+            // should be fixed to ensure that all resources are properly
+            // released, and especially in the case of databases or file writing
+            // that the cache is flushed and the on disk store is left in a sane
+            // state.
+            close(b.stop)
+        }
+        log.Printf(
+            "server at %v now shut down",
+            lis.Addr(),
+        )
+
+    }()
+
+    go func() {
+    out:
+        for {
+            select {
+            case <-b.stop:
+
+                log.Println("stopping service")
+
+                // This is the proper way to stop the gRPC server, which will
+                // end the next goroutine spawned just above correctly.
+                b.svr.GracefulStop()
+                cleanup()
+                break out
+            }
+        }
+    }()
+
+    // The stop signal is triggered when this function is called, which triggers
+    // the graceful stop of the server, and terminates the two goroutines above
+    // cleanly.
+    return func() {
+        log.Printf("stop called on service")
+        close(b.stop)
+    }
+}
+```
+
+You can see here, the second goroutine is just waiting on the shutdown, to run the cleanup code. We can't do the two things in one goroutine because the gRPC `Serve` function handles its own concurrency, which as mentioned previously, has proven to have an undocumented limitation on message size and stream writes in a short period of time. This issue has been noted on the relevant issues board on Github.
+
+One goroutine handles running the stream service, the other waits for the shutdown signal and propagates this shutdown request to the stream service so everything stops correctly.
+
+It is a common problem for beginners working with concurrency in Go to have applications that have to be force-killed (`kill -9 <pid>` or `ctrl-\` on the terminal). It is necessary in Go to properly handle stopping all goroutines as they continue to execute (or wait) and the process does not terminate.
