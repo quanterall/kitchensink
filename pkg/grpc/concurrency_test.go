@@ -25,7 +25,7 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srvr := server.New(addr, 128)
+	srvr := server.New(addr, 32)
 	stopSrvr := srvr.Start()
 
 	cli, err := client.New(defaultAddr, time.Second*5)
