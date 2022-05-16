@@ -1,7 +1,7 @@
 # kitchensink
 
 - [Teaching Golang via building a Human Readable Binary Transcription Encoding Framework](#teaching-golang-via-building-a-human-readable-binary-transcription-encoding-framework)
-- [Prerequisites](#prerequisites)
+	- [Prerequisites](#prerequisites)
 	- [Install Go](#install-go)
 	- [Install Protobuf Compiler](#install-protobuf-compiler)
 	- [Install gRPC plugins for Go](#install-grpc-plugins-for-go)
@@ -21,11 +21,10 @@
 		- [Defining a generalised type framework](#defining-a-generalised-type-framework)
 		- [Interface Implementation Assertion](#interface-implementation-assertion)
 		- [Interface implementation using an embedded function](#interface-implementation-using-an-embedded-function)
-		- [Making the output code more useful with some extensions](#making-the-output-code-more-useful-with-some-extensions)
+		- [Making the gRPC generated code more useful with some extensions](#making-the-grpc-generated-code-more-useful-with-some-extensions)
 		- [Documentation comments in Go](#documentation-comments-in-go)
 		- [go:generate line](#gogenerate-line)
-		- [Import Alias](#import-alias)
-		- [Adding a Stringer for the generated Error type](#adding-a-stringer-for-the-generated-error-type)
+		- [Adding a Stringer `Error()` for the generated Error type](#adding-a-stringer-error-for-the-generated-error-type)
 		- [Convenience types for results](#convenience-types-for-results)
 		- [Create Response Helper Functions](#create-response-helper-functions)
 	- [Step 4 The Encoder](#step-4-the-encoder)
@@ -86,7 +85,7 @@ clear detail. Many tutorials leave out important things, and to ensure this does
 not happen, each stage's parts will be also found in the [steps](./steps)
 folder at the root of the repository.
 
-## Prerequisites
+### Prerequisites
 
 In general, you will be deploying your binaries to systems also running ubuntu
 20 or 21 or similar, on x86-64 platform, so the same instructions can be used in
@@ -379,7 +378,7 @@ create an 'undefined behaviour' that could become a security vulnerability.
 
 #### The concrete type
 
-In the root of the repository, create a new file called `types.go`. This is
+Create a new folder [pkg/codec](pkg/codec) and in it create a new file called `types.go`. This is
 where we will define the main types that will be used by packages and
 applications that use our code.
 
@@ -458,6 +457,8 @@ interface is not implemented.
 var _ codecer.Codecer = &Codec{}
 ```
 
+This is a good way to avoid problems when trying to use a concrete type, if the interface was changed, for example, and the existing implementations did not have the correct function signatures, the compiler will tell you this line doesn't work before, and in your IDE, should get red squiggly lines if something like this happens.
+
 #### Interface implementation using an embedded function
 
 The type defined in the previous section provides for a changeable function for
@@ -471,27 +472,25 @@ More often you will create methods that refer to the pointer to the type because
 they will be struct types and methods that call on a non pointer method copy the
 struct, which may not have the desired result as this will result in concurrent
 copies of values that are not the same variable, and are discarded at the end of
-this method's execution, potentially consuming a lot of memory and time moving that memory around.
+this method's execution, potentially consuming a lot of memory and time moving that memory around. 
+
+As well as potentially causing bugs when unexpected values are in these places when they should have been changed by other code somewhere else.
 
 When the type is a potentially shared or structured (struct or `[]`) type, the
 copy will waste time copying the value, or referring to a common version in the
 pointer embedded within the slice type (or map), and memory to store the copy,
 and potentially lead to errors from race conditions or unexpected state
-divergence if the functions mutate values inside the structure. Usually non
+divergence if the functions mutate values inside the structure. 
+
+Usually non
 pointer methods are only used on simple value types like specially modified
 versions of value types (anything up to 64 bits in size, but also arrays, which
 are `[number]type` as opposed to `[]type`), or when this copying behaviour is
 intended to deliberately avoid race conditions, and the shallow copy will not
-introduce unwanted behaviours.
+introduce unwanted behaviours or potentially cause race conditions with multiple threads modifying the data being pointed to.
 
-In this case, the pointer is fine, because it is not intended that the 
-`Codec` type ever be changed after initialisation. However, because its 
-methods and fields are exposed, code that reaches through and modifies this 
-could break this assumption. However, the rationale for such a mutation is 
-hard to justify or even conceive so any programmer who mutates this 
-particular structure is behaving in a very idiosyncratic way which might be 
-called stupid, or may just mean they are ignorant of the implications of 
-concurrency, or, alternatively, they know, and their code is not concurrent.
+In this case, the pointer is fine, because it is not intended that the `Codec` type ever be changed after initialisation. However, because its 
+methods and fields are exposed, code that reaches through and modifies these could break this assumption. 
 
 ```go
 // Encode implements the codecer.Codecer.Encode by calling the provided
@@ -511,7 +510,7 @@ func (c *Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
 func (c *Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }
 ```
 
-#### Making the output code more useful with some extensions
+#### Making the gRPC generated code more useful with some extensions
 
 There is two minor gotchas that current versions of the go plugins for protoc to
 generate our RPC API that we are going to show a workaround for
@@ -578,30 +577,7 @@ In Goland IDE this can be invoked directly from the editor.
 //go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./based32.proto
 ```
 
-#### Import Alias
-
-Note the import alias here is present to explicitly refer to its' name as set in
-the package line at the top of the file. You need to change this URL to match
-the URL of your package name.
-
-We are using the name codec, even though in our repository this is
-`kitchensink` but for your work for the tutorial you will call your package,
-presumably, `codec`. This is not mandatory but it is idiomatic to match the name
-of a package and the folder it lives in.
-
-Go will expect the name defined in this line to refer to this package, so it is
-confusing to see the export ending with a different word. In such cases it is
-common to explicitly use a renaming prefix in the import (an alias that is found
-just before the import path in an import block or statement). This is why we
-have it here, even though in the `types.go` file it has `package codec`
-
-```go
-import (
-    codec "github.com/quanterall/kitchensink"
-)
-```
-
-#### Adding a Stringer for the generated Error type
+#### Adding a Stringer `Error()` for the generated Error type
 
 The protobuf compiler creates a type Error to match the one defined in our proto
 file, but, it does not automatically generate the stringer for it. Normal types
@@ -623,11 +599,6 @@ and understandable.
 ```go
 // Error implements the Error interface which allows this error to automatically
 // generate from the error code.
-//
-// Fixes a bug in the generated code, which not
-// only lacks the Error method it uses int32 for the error string map when it
-// should be using the defined Error type. No easy way to report the bug in the
-// code.
 //
 // With this method implemented, one can simply return the error map code
 // protos.Error_ERROR_NAME_HERE and logs print this upper case snake case which
@@ -661,6 +632,8 @@ type DecodeRes struct {
 }
 ```
 
+Yes, if you wanted to, you could use a structured type with error and return value if you preferred. The extra work for Go programmers is far greater than the no extra work for variant type using programmers.
+
 #### Create Response Helper Functions
 
 The following functions create convenient functions to return the result or the
@@ -683,8 +656,7 @@ It is not mandatory, as a Go programmer, for you to obey these conventions, they
 are here in this protobuf specification because you will encounter it a lot. For
 the good of your fellow programmers, create return types with result and error.
 There is cases where it makes sense to return a result AND an error, where such
-an error is not fatal, and the variant return convention ignores this, and makes
-more complexity for programmers, and compiler writers.
+an error is not fatal, and the variant return convention ignores this.
 
 ```go
 // CreateEncodeResponse is a helper to turn a codec.EncodeRes into an
@@ -734,6 +706,14 @@ func CreateDecodeResponse(res DecodeRes) (response *DecodeResponse) {
 }
 ```
 
+It is worth explaining how the variant type is here implemented by the `protoc` code generator. 
+
+The `.Encoded` and `.Decoded` fields in the response type are `interface{}` types, which means they can have any type included inside them, so long as the code using the data knows what types to expect, otherwise you will get a type assertion panic from an invalid type assertion.
+
+The code generator creates two types, the `NameResponse_Error` and `NameResponse_NameString` or `NameResponse_NameData` as the case may be. These are then set to satisfy the interface type it generates for the `Decoded` and `Encoded` fields.
+
+Obviously, this puts a pretty onerous burden on you as a Go programmer when you are obliged to use these, but this helper can be modified to fit any `oneof` using protobuf message and shift this ugly thing away from your main algorithms.
+
 ----
 
 ### [Step 4](steps/step4) The Encoder
@@ -742,7 +722,7 @@ Next step is the actual library that the protobufs and interface and types were 
 
 #### Always write code to be extensible
 
-While when making new libraries you will change the types and protocols a lot as you work through the implementation, it is still the best pattern to start with defining at least protocols and making a minimal placeholder for the implementation.
+While making new libraries you will change the types and protocols a lot as you work through the implementation, it is still the best pattern to start with defining at least protocols and making a minimal placeholder for the implementation.
 
 It is possible to create a library that does not have any significant state or configuration that just consists of methods that do things, which can be created without a `struct` tying them together, this is rare, and usually only happens when there is only one or two functions required. 
 
@@ -776,20 +756,20 @@ import (
     "os"
 )
 
-var log = logg.New(os.Stderr, "based32 ", logg.Llongfile)
+var log = logg.New(os.Stderr, "based32" , logg.Llongfile|logg.Lmicroseconds)
 ```
 
 What we are doing here is using the standard logging library to set up a customised configuration. The standard logger only drops the timestamp with the log entries, which is rarely a useful feature, and when it is, the time precision is too low on the default configuration, as the most frequent time one needs accurate timestamps is when the time of events is in the milli- or microseconds when debugging concurrent high performance low latency code.
 
-This log variable essentially replaces an import in the rest of the package for the `log` standard library, and configures it to print full file paths and label them also with the name of the package.
+This log variable essentially replaces an import in the rest of the package for the `log` standard library, and configures it to print full file paths and label them also with the name of the package. Anywhere in the same package now, `log` now refers to this customised logger.
+
+We are adding the microseconds here as well, because with our concurrent code, less time precision would not reveal any information, as events are happening in time periods under 1000th of a second, called "milliseconds". Generally this is sufficient as the switching periods between goroutines are no more frequent than 1 microsecond.
 
 It is ok to leave one level of indirection in the site of logging errors, that is, the library will return an error but not log, but it should at least log where the error returns, so that when the problem comes up, you only have to trace back to the call site and not several layers above this.
 
 When you further have layers of indirection like interfaces and copies of pointers to objects that are causing errors, knowing which place to look for the bug will take up as much time as actually fixing it.
 
 It may be that you are never writing algorithms that need any real debugging, many "programmers" rarely have to do much debugging. But we don't want to churn out script writers only, we want to make sure that everyone has at least been introduced to the idea of debugging. 
-
-For that reason also, now that we are implementing an algorithm here, we are going to deliberately cause bugs and force the student to encounter the process of debugging, show the way to fix them, and not just make this an exercise in copy and paste, for which there will be no benefit as bugs are the way you learn to write good code, without that difficulty, it is not programing, and you will forget the next day how you did it, which makes this whole exercise a waste of time that you could have saved yourself keystrokes and just read it instead.
 
 #### Create an Initialiser
 
@@ -1763,7 +1743,7 @@ import (
 	"os"
 )
 
-var log = logg.New(os.Stderr, "b32 ", logg.Llongfile)
+var log = logg.New(os.Stderr, "b32" , logg.Llongfile|logg.Lmicroseconds)
 ```
 
 It is not generally told this way in the Go community, but this was essential to my own progress as a Go programmer, and I think that if it works this way for me, it probably will help at least a substantial number of other developers starting out on their journey who may not have the luxury of the amount of time I was able to finagle in my learning process as an intern, during which time my living conditions were abominable. 
