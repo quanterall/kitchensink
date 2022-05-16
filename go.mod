@@ -4,9 +4,8 @@ go 1.18
 
 require (
 	github.com/cybriq/interrupt v0.1.3
-	github.com/davecgh/go-spew v1.1.1
 	go.uber.org/atomic v1.9.0
-	google.golang.org/grpc v1.45.0
+	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
 	lukechampine.com/blake3 v1.1.7
 )
