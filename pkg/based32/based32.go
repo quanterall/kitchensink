@@ -13,7 +13,7 @@ package based32
 
 import (
 	"encoding/base32"
-	"github.com/quanterall/kitchensink"
+	"github.com/quanterall/kitchensink/pkg/codec"
 	"github.com/quanterall/kitchensink/pkg/proto"
 	"lukechampine.com/blake3"
 	"strings"
@@ -244,8 +244,9 @@ func makeCodec(
 		// and won't decode as it is expected.
 		if !strings.HasPrefix(input, cdc.HRP) {
 
-			log.Printf("Provided string has incorrect human readable part:"+
-				"found '%s' expected '%s'", input[:len(cdc.HRP)], cdc.HRP,
+			log.Printf(
+				"Provided string has incorrect human readable part:"+
+					"found '%s' expected '%s'", input[:len(cdc.HRP)], cdc.HRP,
 			)
 
 			err = proto.Error_INCORRECT_HUMAN_READABLE_PART

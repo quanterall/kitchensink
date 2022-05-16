@@ -88,10 +88,6 @@ folder at the root of the repository.
 
 ## Prerequisites
 
-This tutorial was developed on a system running Pop OS based on Ubuntu 21. As
-such there may be some small differences compared to Ubuntu 20, but protobuf
-will still be version 3.
-
 In general, you will be deploying your binaries to systems also running ubuntu
 20 or 21 or similar, on x86-64 platform, so the same instructions can be used in
 setting up a fresh server when deploying. We will not cover Docker or any other
@@ -314,7 +310,8 @@ why the tutorial uses such a simple application.
 To run the protobuf compiler and generate the code, from the root of the
 repository you run the following command:
 
-    protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./pkg/proto/based32.proto
+    protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. \ 
+      --go-grpc_opt=paths=source_relative ./pkg/proto/based32.proto
 
 `--go_out` is essential for when generating Go versions of the protobuf handler
 code. Without this, the remaining options are not understood.
