@@ -8,12 +8,12 @@ service Transcriber {
 }
 
 message EncodeRequest {
-  uint64 idNonce = 1;
+  uint64 IdNonce = 1;
   bytes Data = 2;
 }
 
 message EncodeResponse {
-  uint64 idNonce = 1;
+  uint64 IdNonce = 1;
   oneof Encoded {
     string EncodedString = 2;
     Error Error = 3;
@@ -21,12 +21,12 @@ message EncodeResponse {
 }
 
 message DecodeRequest{
-  uint64 idNonce = 1;
+  uint64 IdNonce = 1;
   string EncodedString = 2;
 }
 
 message DecodeResponse {
-  uint64 idNonce = 1;
+  uint64 IdNonce = 1;
   oneof Decoded {
     bytes Data = 2;
     Error Error = 3;

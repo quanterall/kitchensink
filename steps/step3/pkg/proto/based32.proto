@@ -1,6 +1,6 @@
 syntax = "proto3";
 package proto;
-option go_package = "github.com/quanterall/kitchensink/service/proto";
+option go_package = "github.com/quanterall/kitchensink/pkg/proto";
 
 service Transcriber {
   rpc Encode(stream EncodeRequest) returns (stream EncodeResponse);
@@ -8,24 +8,28 @@ service Transcriber {
 }
 
 message EncodeRequest {
-  bytes Data = 1;
+  uint64 IdNonce = 1;
+  bytes Data = 2;
 }
 
 message EncodeResponse {
+  uint64 IdNonce = 1;
   oneof Encoded {
-    string EncodedString = 1;
-    Error Error = 2;
+    string EncodedString = 2;
+    Error Error = 3;
   }
 }
 
 message DecodeRequest{
-  string EncodedString = 1;
+  uint64 IdNonce = 1;
+  string EncodedString = 2;
 }
 
 message DecodeResponse {
+  uint64 IdNonce = 1;
   oneof Decoded {
-    bytes Data = 1;
-    Error Error = 2;
+    bytes Data = 2;
+    Error Error = 3;
   }
 }
 

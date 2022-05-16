@@ -3,8 +3,8 @@ module github.com/quanterall/kitchensink/steps/step3
 go 1.18
 
 require (
-	github.com/quanterall/kitchensink v0.0.0-20220426120150-4a59688929c1
-	google.golang.org/grpc v1.45.0
+	github.com/quanterall/kitchensink v0.0.0-20220516091631-702df92fa4c2
+	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
 )
 

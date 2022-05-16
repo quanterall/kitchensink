@@ -13,6 +13,11 @@ package proto
 // Error implements the Error interface which allows this error to automatically
 // generate from the error code.
 //
+// Fixes a bug in the generated code, which not
+// only lacks the Error method it uses int32 for the error string map when it
+// should be using the defined Error type. No easy way to report the bug in the
+// code.
+//
 // With this method implemented, one can simply return the error map code
 // protos.Error_ERROR_NAME_HERE and logs print this upper case snake case which
 // means it can be written to be informative in the proto file and concise in
@@ -24,14 +29,16 @@ func (x Error) Error() string {
 
 // EncodeRes makes a more convenient return type for the results
 type EncodeRes struct {
-	String string
-	Error  error
+	IdNonce uint64
+	String  string
+	Error   error
 }
 
 // DecodeRes makes a more convenient return type for the results
 type DecodeRes struct {
-	Bytes []byte
-	Error error
+	IdNonce uint64
+	Bytes   []byte
+	Error   error
 }
 
 // CreateEncodeResponse is a helper to turn a proto.EncodeRes into an
@@ -39,7 +46,7 @@ type DecodeRes struct {
 func CreateEncodeResponse(res EncodeRes) (response *EncodeResponse) {
 
 	// First, create the response structure.
-	response = &EncodeResponse{}
+	response = &EncodeResponse{IdNonce: res.IdNonce}
 
 	// Because the protobuf struct is essentially a Variant, a structure that
 	// does not exist in Go, there is an implicit contract that if there is an
@@ -67,7 +74,7 @@ func CreateEncodeResponse(res EncodeRes) (response *EncodeResponse) {
 func CreateDecodeResponse(res DecodeRes) (response *DecodeResponse) {
 
 	// First, create the response structure.
-	response = &DecodeResponse{}
+	response = &DecodeResponse{IdNonce: res.IdNonce}
 
 	// Return an error if there is an error, otherwise return the response data.
 	if res.Error != nil {
@@ -75,7 +82,7 @@ func CreateDecodeResponse(res DecodeRes) (response *DecodeResponse) {
 			Error(Error_value[res.Error.Error()]),
 		}
 	} else {
-		response.Decoded = &DecodeResponse_Data{res.Bytes}
+		response.Decoded = &DecodeResponse_Data{Data: res.Bytes}
 	}
 	return
 }
