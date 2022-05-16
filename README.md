@@ -761,7 +761,7 @@ var log = logg.New(os.Stderr, "based32" , logg.Llongfile|logg.Lmicroseconds)
 
 What we are doing here is using the standard logging library to set up a customised configuration. The standard logger only drops the timestamp with the log entries, which is rarely a useful feature, and when it is, the time precision is too low on the default configuration, as the most frequent time one needs accurate timestamps is when the time of events is in the milli- or microseconds when debugging concurrent high performance low latency code.
 
-This log variable essentially replaces an import in the rest of the package for the `log` standard library, and configures it to print full file paths and label them also with the name of the package. Anywhere in the same package now, `log` now refers to this customised logger.
+This log variable essentially replaces an import in the rest of the package for the `log` standard library, and configures it to print full file paths and label them also with the name of the package. Anywhere in the same package now, `log` now refers to this customised logger.
 
 We are adding the microseconds here as well, because with our concurrent code, less time precision would not reveal any information, as events are happening in time periods under 1000th of a second, called "milliseconds". Generally this is sufficient as the switching periods between goroutines are no more frequent than 1 microsecond.
 
@@ -920,7 +920,7 @@ The first thing we need for the codec is the check function. The check makes a c
     }
 ```
 
-It is possible to instead use the shorter, and simpler `crc32` checksum function, but we don't like it because it requires converting bytes to 32 bit integers and back again, which is done in practise like this:
+It is possible to instead use the shorter, and simpler `crc32` checksum function, but we don't like it because it requires converting bytes to 32 bit integers and back again, which is done in practice like this:
 
 ```go
 example := []byte{1, 2, 3, 4}
@@ -939,7 +939,9 @@ for little-endian, the ordering of the left shift (which means multiply by 2 to 
 >
 > Maybe one day common sense will prevail and the bits will be ordered sequentially and not have reversals for every 8, 16, 32 or 64 byte chunks, it would make it a lot simpler to think about since we number the bytes forward, and each word is backwards...
 
-If you follow the logic of that conversion, you can see that it is 4 copy operations (copy 8 bit value to 32 bit *zero* value), 3 bit shifts and 3 addition operations. The hash function does not do this conversion, it operates directly on bytes (in fact, I think it uses 8 byte/64 bit words, and coerces the byte slices to 64 bit long words using an unsafe type conversion) using a sponge function, and Blake3 is the fastest hash function with cryptographic security, which means a low rate of collisions, which in terms of checksums equates to two strings creating the same checksum, and breaking some degree of security of the function. So, we use blake3 hashes and cut them to our custom length.
+If you follow the logic of that conversion, you can see that it is 4 copy operations (copy 8 bit value to 32 bit *zero* value), 3 bit shifts and 3 addition operations. The hash function does not do this conversion, it operates directly on bytes (in fact, I think it uses 8 byte/64 bit words, and coerces the byte slices to 64 bit long words using an unsafe type conversion) using a sponge function, and Blake3 is the fastest hash function with cryptographic security, which means a low rate of collisions, which in terms of checksums equates to two strings creating the same checksum, and breaking some degree of security of the function. So, we use blake3 hashes and cut them to our custom length. 
+
+It also introduces the use of one of the best hash functions currently available, Blake3, and chosen by most new projects due to its speed and security. Hashes are very important for authentication and encryption as they make it difficult to deliberately corrupt the data it is generated from.
 
 The length is variable as we are designing this algorithm to combine padding together with the check. So, essentially the way it works is we take the modulus of 5 (remainder of the division) of the length of the data, and pad it out to the next biggest multiple of 5 bytes, which is 8 base32 symbols. The formula for this comes next.
 
@@ -975,13 +977,17 @@ func getCheckLen(length int) (checkLen int) {
 }
 ```
 
-The function takes the input of the length of our message in bytes, and returns the correct length. The result is that for an equal multiple of 5 bytes, we add 5 bytes of check, and 4, 3, 2 or 1 bytes for each of the variations that are more than this multiple, plus accounting for the extra byte to store the check length.
+The function takes the input of the length of our message in bytes, and returns the correct length for the check. The result is that for an equal multiple of 5 bytes, we add 5 bytes of check, and 4, 3, 2 or 1 bytes for each of the variations that are more than this multiple, plus accounting for the extra byte to store the check length.
 
 > The check length byte in fact only uses the first 3 bits, as it can be no more than 5, which requires 3 bits of encoding. Keep this in mind for later as we use this to abbreviate the codes as implicitly their largest 5 bits must be zero, which is precisely one base32 character in length, thus it always prefixes with a `q` as described by the character set we are using for this, based on the Bech32 standard used by Bitcoin and Cosmos, which reduces the length of the encoded value by one character, and must be added back to correctly decode.
 
 #### Writing the Encoder Implementation
 
 The standard library contains a set of functions to encode and decode base 32 numbers using custom character sets. The 32 characters defined in the initialiser defined earlier, are chosen for their distinctiveness, it does not have I and 1, only small L (l), and only has zero (0) not capital O, as, unfortunately, in many fonts these can be hard to differentiate. Likewise for 2 and Z, and 5 and S.
+
+This character set is taken from Bech32 and the Cosmos SDK also uses this same character set by default. It produces the most unambiguous character strings possible, while being as compact as possible. The old Base58check used for Bitcoin addresses produced more compact codes but they were easier to mis-transcribe due to ambiguous characters. Base64 is another encoding that is default for JSON binary data but it is even more plagued by ambiguity than Base58. Even optical character recognition systems can misread the ambiguous characters especially in some fonts. Since we can't fix the fonts, we have to fix the codes.
+
+Note that the Ethereum address standard only recently added a check value that uses capital letters in the hexadecimal encoding. It used to be easy to send ethereum to nobody before this. Bitcoin had a check in it from day one.
 
 ```go
     // Create a base32.Encoding from the provided charset.
@@ -1029,7 +1035,7 @@ The standard library contains a set of functions to encode and decode base 32 nu
 
 The comments explain every step in the process. 
 
-#### About `make`
+#### About `make()`
 
 First, as this is the first point at which the builting function `make` appears, this is a function that initialises and populates the three main types of "reference types" (values that are actually pointers), slice (`[]T`), map (`map[K]V`) and channel (`chan T`). 
 
@@ -1037,29 +1043,39 @@ All of these types have a top level "value" structure which contains pointers an
 
 Overall, you will use and encounter slices the most. Slices can be populated with literals, creating the equivalent of 'constant' values, which are not actually constant in Go, as they involve pointers which are strictly not constant, for which reason they are not immutable. 
 
-Adding immutability creates an extra attribute for all variables which would mean on the underlying implementation, *everything* is then a "reference type" and every access requires an indirection to account for the hidden values like "mutable". In practise, this actually is a performance benefit because it eliminates compiler complexity and makes performance tuning more predictable for the programmer.
+Adding immutability creates an extra attribute for all variables which would mean on the underlying implementation, *everything* is then a "reference type" and every access requires an indirection to account for the hidden values like "mutable". In practice, this actually is a performance benefit because it eliminates compiler complexity and makes performance tuning more predictable for the programmer.
 
 Immutability was left out of Go because it can be mimicked using encapsulation and non-exported symbols. Go does not include anything that can be constructed from what is already available. All the things that you will miss from other languages, Go will show you just how expensive they are to implement and make you understand why Go does not have them for all purposes.
 
 The `make` function must be invoked before using any of these structured types otherwise the variable is `nil`.
 
-With slices, it is possible to invoke `make` without a length parameter, and you will be able to use the `append` function to add elements to the slice. 
+With slices, it is possible to invoke `make` without a length parameter, and you will be able to use the `append` function to add elements to the slice. You can also initalise a slice with an empty literal:
+
+​    newSlice := []byte{}
 
 We will not show you `append` even once in this tutorial because actually, it's a bad idea to use it in production, as it costs memory allocations and very often, *heap* allocations, which are the most expensive. `make` also requires heap allocations, but we promote the idea of using it with length values for slices to put the allocation during initialisation rather than during the runtime, when this will create latency in the implementation, and is preferable to be done before loops as well, so only one allocation is done instead of potentially hundreds during an initialisation loop.
 
+It is acceptable to delegate this allocation logic for some purposes to the runtime, but if performance is critical, then it is always best to derive some kind of estimate if an exact precalculation is not possible, to reduce possible time consuming heap allocations during tight loops.
+
 > **The syntax for slices and copying requires some explanation.**
 >
-> In Go, to copy slices (variable types with the `[]` prefix) you use the `copy` operator, the assignment operator `=` copies the *value* of the slice, which is actually a struct, internally, containing the pointer to the memory, the current length used and the capacity (which can be larger than current used), which would not achieve the goal of creating a new, expanded version including the check length prefix and check/padding.
+> In Go, to copy slices (variable types with the `[]` prefix) you use the `copy` operator, the assignment operator `=` copies the *value* of the slice, which is actually a struct, internally, containing the pointer to the memory, the current length used and the capacity (which can be larger than current used), which would not achieve the goal of creating a new, expanded version including the check length prefix and check/padding, it just creates a new reference to the same old data, and modifying this will still then need to make a copy, and, any modifications that don't cause a reallocation and copy will be visible to other threads with this same pointer to the slice.
 >
 > The other point to note is the use of the slicing operator. Individual elements are addressed via `variableName[n]` and to designate a subsection of the slice you use `variableName[start:end]` where the values represent the first element and the element *after* the last element.
 >
 > It is important to explain this as the notation can be otherwise confusing. The end index in particular needs to be understood as *exclusive* not *inclusive*. The length function `len(sliceName)` returns a value that is the same as the index that you would use to designate *up to the end* of the slice, as it is the cardinal value (count) where the ordinal (index) starts from zero and is thus one less.
 >
-> Lastly, the slicing operator can also be used on strings, but beware that the indexes are bytes, and do not respect the character boundaries of UTF-8 encoding, which is only one byte per character for the first 255 characters of ASCII and does not include any (many, it does include several umlauts and accent characters from european languages) non-latin symbols. 
+> Note that if you omit either of these values, as in the "slicing" operation used to convert arrays into slices:
+>
+> ​    sliceName[:]
+>
+> the unspecified values default to zero and the last index, which is the currently allocated length of the slice.
+>
+> Lastly, the slicing operator can also be used on strings, but beware that the indexes are bytes, and do not respect the character boundaries of UTF-8 encoding, which is only one byte per character for the first 255 characters of ASCII and does not include any (many, it does include several umlauts and accent characters from european languages) non-latin symbols, There is, however, several competing simple 8 bit character maps other than ASCII, that have graphical characters like the MS DOS one, and several others for other alphabetic scripts like japanese, korean and cyrillic.
 >
 > If you need to do UTF-8 text processing you need to use iterator functions that detect the variable length characters and convert them to 32 bit values. We don't need that here because we are using pure ASCII 8 bit characters, to be exact, 7 bits with a zero bit pad.
 >
-> However, in the case of the Base32 encoding, we are using standard ASCII symbols so we know that we can cut off the first one to remove the redundant zero that appears because of the maximum 3 bits used for the check length prefix value, leave 5 bits in front (due to the backwards encoding convention for numbers within machine words). 
+> In the case of the Base32 encoding, we are using standard 7 bit ASCII symbols so we know that we can cut off the first one to remove the redundant zero that appears because of the maximum 3 bits used for the check length prefix value, leave 5 bits in front (due to the backwards encoding convention for numbers within machine words). 
 >
 > *whew* A lot to explain about the algorithm above, but vital to understand for anyone who wants to work with slices of bytes in Go, which basically means anything involving binary encoding. This will be as deeply technical as this tutorial gets, it's not essential to understand it to do the tutorial, but this explanation is added for the benefit of those who do or will need to work with binary encoded data.
 
@@ -1081,7 +1097,7 @@ func getCutPoint(length, checkLen int) int {
 }
 ```
 
-This is a very simple formula, but it needs to be used again in the decoder function where it allows the raw bytes to be correctly cut to return the checked value.
+This is a very simple formula, but it needs to be used again in the decoder function where it allows the raw bytes to be correctly cut to return the checked value. It just needs the checklen, and further includes the prefix check length byte which is sliced off before using this value.
 
 The following function assumes that the decoding from Base32 to bytes has already been done correctly, but nothing more:
 
@@ -1151,6 +1167,8 @@ The following function assumes that the decoding from Base32 to bytes has alread
 ```
 
 Take note about the use of the string cast above. In Go, slices do not have an equality operator `==` but and arrays (fixed length with a constant length value like this `[32]byte` as opposed to `[]byte` for the slice) and strings do. 
+
+Note that you cannot create an array using a variable. Only constants and literals can be used to do this.
 
 Casting bytes to string creates an immutable copy so it adds a copy operation. If the amount of data is very large, you write a custom comparison function to avoid this duplication, but for short amounts of data, the extra copy stays on the stack and does not take a lot of time, in return for the simplified comparison as shown above.
 
@@ -1261,7 +1279,7 @@ What we now do is use the random number generator to create a small set of rando
 
 We define a random seed, and from this run a loop to generate the defined number of random values, and then hash them with Blake3 hash function again... since there is no reason why to use a different library and clutter up our imports. 
 
-In general most new crypto projects are using blake3 because of its performance and security, and SHA256 to deal with legacy hashes from older projects. 
+In general most new crypto projects are using blake3 because of its performance and security, and SHA256 to deal with legacy hashes from older projects. Blake2 makes some appearances here and there but it was superseded only a few years later.
 
 IPFS uses SHA256 hashes also, but this is partly due to the fact that there is ample hardware to accelerate this hash function and the security of the identity of IPFS data is not as monetarily important as cryptocurrency.
 
@@ -1563,6 +1581,8 @@ So, add this at the end of the test function
 	}
 ```
 
+Note that it algorithmically trims the bytes of intput according to modulus 5, and performs the equivalent trim on the hex strings for the output to enable simple comparison of the bytes. The raw bytes this is `%5` but for hex it is multiplied by 2 as each hexadecimal character represents half a byte.
+
 Running `go test -v ./...` will then yield this new result:
 
 ```
@@ -1707,11 +1727,13 @@ Writing good tests is a bit of a black art, and the task gets more and more comp
 
 ### [Step 6](steps/step6) Creating a Server
 
-Just to clarify an important distinction, and another aspect of writing modular code, we are not writing an *executable* that you can spawn from the commandline or within scripts or Dockerfiles. We are writing an *in process* service that can be started by any Go application, the actual application that does this will be done later.
+Just to clarify an important distinction, and another aspect of writing modular code, we are not writing an *executable* that you can spawn from the commandline or within scripts or Dockerfiles. We are writing an *in process* service that can be started by any Go application, the actual application that does this will be created later.
 
 The reason why we separate the two things is because for tests, we want to spawn a server and also in parallel run a client to query it.
 
 Because our service uses gRPC/Protobuf for its messages, for the reason that it is binary, and supported by almost every major langage, we will put the service inside `pkg/grpc/server`.
+
+We create the server first for the same reason as we create the encoder first. The entity is apriori in the two part concept. You can't have a client without a server, but you can have a server without a client, as it is impossible to define a request without first having data to request.
 
 #### The Logger
 
@@ -1768,9 +1790,10 @@ import (
 	"sync"
 )
 
-// Transcriber is a multithreaded worker pool for performing transcription
-// encode and decode requests.
-type Transcriber struct {
+// transcriber is a multithreaded worker pool for performing transcription encode
+// and decode requests. It is not exported because it must be initialised
+// correctly.
+type transcriber struct {
 	stop                       chan struct{}
 	encode                     []chan *proto.EncodeRequest
 	decode                     []chan *proto.DecodeRequest
@@ -1783,6 +1806,10 @@ type Transcriber struct {
 ```
 
 There is a few explanations that need to be made to start with.
+
+#### When to not export an externally used type
+
+Here is another case where we are not exporting a type that has methods that will be used by other packages that will import this package. The reason is that channels and slices both need initialisation before they can be used, as performing operations on these variables that have not been initialised will cause a `nil` panic. Thus, we instead will export an initialiser function, which will take care of this initialisation for us.
 
 #### About Channels
 
@@ -1855,17 +1882,21 @@ Back to channels, the `make` function *must* be called before the channel is sen
 
 In this code, we first make the slices of channels, and then run a loop for each worker and initialise the channel for each of the four channels we make for each worker thread.
 
+Note that it is possible to use literals to initialise maps and slices, but it is not possible to use literals to initialise channels. However, initialising slices and maps with literals is not considered idiomatic, and partly because make allows the initial allocation of slice length, capacity or map capacity, and as mentioned previously, pre-allocation prevents unpredictable delays during allocation especially in tight initialisation or iteration loops.
+
 #### Atomic Counters
 
-You wil also notice `encCallCount` and `decCallCount` are `atomic` types. As mentioned above, we skip mutexes and maps, but atomics are not so infrequently used as those two structures in common Go code, for the reason that concurrent access to a shared variable can lead to race conditions and indeterminate state if two or more threads are accessing a variable and one or more of them are writing to it at the same time.
+You wil also notice `encCallCount` and `decCallCount` are `atomic` types.
 
-Atomic values only permit one accessor at a time, and have a built-in lock that protects their access, if two threads try to access an atomic at exactly the same time, the first one gets first go and then the second thread waits until the value has been read or written (`Load` and `Store`) before it gets its access.
+Atomic values only permit one accessor at a time, and have a built-in lock that protects their access, if two threads try to access an atomic at exactly the same time, the first one gets first go and then the second thread waits until the value has been read or written (`Load` and `Store`) before it gets its access. They default to access by copy, so if the data inside the atomic is a pointer, one should use `sync/mutex` locks instead. For this reason as you will see if you inspect the documentation for this package, all of the types that are available on uber's version of `atomic` are "value" types.
 
 One can encapsulate *any* variable in an `atomic.Value` and the Go standard library `sync/atomic` . To see more about this, I will introduce you to `godoc` which lives at [https://pkg.go.dev](https://pkg.go.dev) - here is the `sync/atomic` package: https://pkg.go.dev/sync/atomic
 
 We are using the [go.uber.org/atomic](https://pkg.go.dev/go.uber.org/atomic) variant out of habit because it has a few more important types as you can see if you click the link I just dropped there. Boolean, Duration, Error, Float64, Int32, Int64, Time, String and some unsafe things. 
 
 Uber's version is better, because it creates proper initialisers for everything, whereas with the inbuilt `sync/atomic` library we have to boilerplate all that stuff to do it correctly. As I say, in this case, it's just habit as the non-pointer version of `sync.Int32` would serve just as well, but it is rare when one is using atomics that one is only doing such a small and singular thing with it as this, usually it will appear in multiple places protecting exclusive access with nicer syntax than mutexes, and facilitating very fast increment and decrement operations for counters, which is our use case here.
+
+Note that strings are a special case of a data type that is actually a pointer in the underlying implementation, as they are immutable, and their memory area is marked not writeable to the memory management unit which will cause a segmentation fault and halt the program. Thus they are the sole exception for value types in atomic variables, as they are not changeable, there cannot be a read/write race condition. A modified string is a new pointer and implicitly has no conflict with the old one. Though there can be a race condition on the rewriting of the pointer, which is why an atomic string is needed.
 
 #### Running the Worker Pool
 
@@ -1876,38 +1907,40 @@ First is the handler loop:
 ```go
 // handle the jobs, this is one thread of execution, and will run whatever job
 // has appeared and this thread
-func (t *Transcriber) handle(worker uint32) {
+func (t *transcriber) handle(worker uint32) {
 
-    t.wait.Add(1)
+	t.wait.Add(1)
 out:
-    for {
-        select {
-        case msg := <-t.encode[worker]:
+	for {
+		select {
+		case msg := <-t.encode[worker]:
 
-            t.encCallCount.Inc()
-            res, err := based32.Codec.Encode(msg.Data)
-            t.encodeRes[worker] <- proto.EncodeRes{
-                String: res,
-                Error:  err,
-            }
+			t.encCallCount.Inc()
+			res, err := based32.Codec.Encode(msg.Data)
+			t.encodeRes[worker] <- proto.EncodeRes{
+				IdNonce: msg.IdNonce,
+				String:  res,
+				Error:   err,
+			}
 
-        case msg := <-t.decode[worker]:
+		case msg := <-t.decode[worker]:
 
-            t.decCallCount.Inc()
+			t.decCallCount.Inc()
 
-            bytes, err := based32.Codec.Decode(msg.EncodedString)
-            t.decodeRes[worker] <- proto.DecodeRes{
-                Bytes: bytes,
-                Error: err,Completed workerpool section and fixed name
-            }
+			bytes, err := based32.Codec.Decode(msg.EncodedString)
+			t.decodeRes[worker] <- proto.DecodeRes{
+				IdNonce: msg.IdNonce,
+				Bytes:   bytes,
+				Error:   err,
+			}
 
-        case <-t.stop:
+		case <-t.stop:
 
-            break out
-        }
-    }
+			break out
+		}
+	}
 
-    t.wait.Done()
+	t.wait.Done()
 
 }
 ```

@@ -16,7 +16,7 @@ type b32 struct {
 	proto.UnimplementedTranscriberServer
 	stop        chan struct{}
 	svr         *grpc.Server
-	transcriber *Transcriber
+	transcriber *transcriber
 	addr        *net.TCPAddr
 	roundRobin  atomic.Uint32
 	workers     uint32
@@ -24,6 +24,8 @@ type b32 struct {
 
 // New creates a new service handler
 func New(addr *net.TCPAddr, workers uint32) (b *b32) {
+
+	log.Println("creating transcriber service")
 
 	// It would be possible to interlink all of the kill switches in an
 	// application via passing this variable in to the New function, for which
@@ -80,13 +82,16 @@ out:
 
 		worker := b.roundRobin.Load()
 		go func(worker uint32) {
-			// log.Printf("worker %d", worker)
+			log.Printf("worker %d starting", worker)
 			b.transcriber.encode[worker] <- in
+			log.Printf("worker %d encoding", worker)
 			res := <-b.transcriber.encodeRes[worker]
+			log.Printf("worker %d sending", worker)
 			err = stream.Send(proto.CreateEncodeResponse(res))
 			if err != nil {
 				log.Printf("Error sending response on stream: %s", err)
 			}
+			log.Printf("worker %d sent", worker)
 		}(worker)
 		if worker >= b.workers {
 			worker = 0
@@ -96,6 +101,7 @@ out:
 			b.roundRobin.Inc()
 		}
 	}
+	log.Println("encode service stopping normally")
 	return nil
 }
 
@@ -148,10 +154,16 @@ out:
 			b.roundRobin.Inc()
 		}
 	}
+
+	log.Println("decode service stopping normally")
 	return nil
 }
 
 func (b *b32) Start() (stop func()) {
+
+	proto.RegisterTranscriberServer(b.svr, b)
+
+	log.Println("starting transcriber service")
 
 	cleanup := b.transcriber.Start()
 
@@ -163,7 +175,6 @@ func (b *b32) Start() (stop func()) {
 
 	// This is spawned in a goroutine so we can trigger the shutdown correctly.
 	go func() {
-		proto.RegisterTranscriberServer(b.svr, b)
 		log.Printf("server listening at %v", lis.Addr())
 
 		if err := b.svr.Serve(lis); err != nil {
@@ -200,6 +211,8 @@ func (b *b32) Start() (stop func()) {
 			select {
 			case <-b.stop:
 
+				log.Println("stopping service")
+
 				// This is the proper way to stop the gRPC server, which will
 				// end the next goroutine spawned just above correctly.
 				b.svr.GracefulStop()
@@ -212,5 +225,8 @@ func (b *b32) Start() (stop func()) {
 	// The stop signal is triggered when this function is called, which triggers
 	// the graceful stop of the server, and terminates the two goroutines above
 	// cleanly.
-	return func() { close(b.stop) }
+	return func() {
+		log.Printf("stop called on service")
+		close(b.stop)
+	}
 }
