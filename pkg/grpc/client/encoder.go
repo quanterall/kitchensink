@@ -17,7 +17,7 @@ func (b *b32c) Encode(stream proto.Transcriber_EncodeClient) (err error) {
 				break out
 			case msg := <-b.encChan:
 
-				log.Println("sending message on stream")
+				// log.Println("sending message on stream")
 				err := stream.Send(msg.Req)
 				if err != nil {
 					log.Print(err)
