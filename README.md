@@ -36,7 +36,7 @@
 		- [Creating the Encoder](#creating-the-encoder)
 		- [Calculating the check length](#calculating-the-check-length)
 		- [Writing the Encoder Implementation](#writing-the-encoder-implementation)
-		- [About `make`](#about-make)
+		- [About `make()`](#about-make)
 		- [Creating the Check function](#creating-the-check-function)
 		- [Creating the Decoder function](#creating-the-decoder-function)
 	- [Step 5 Testing the algorithm](#step-5-testing-the-algorithm)
@@ -49,6 +49,7 @@
 	- [Step 6 Creating a Server](#step-6-creating-a-server)
 		- [The Logger](#the-logger)
 		- [Implementing the worker pool](#implementing-the-worker-pool)
+		- [When to not export an externally used type](#when-to-not-export-an-externally-used-type)
 		- [About Channels](#about-channels)
 		- [About Waitgroups](#about-waitgroups)
 		- [Initialising the Worker Pool](#initialising-the-worker-pool)
@@ -57,6 +58,9 @@
 		- [Logging the call counts](#logging-the-call-counts)
 		- [Starting the worker pool](#starting-the-worker-pool)
 		- [Creating the gRPC Service](#creating-the-grpc-service)
+	- [Step 7 Creating a Client](#step-7-creating-a-client)
+		- [Data Structures for the Client](#data-structures-for-the-client)
+		- [Client Constructor](#client-constructor)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
