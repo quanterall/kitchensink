@@ -17,7 +17,7 @@ func (b *b32c) Decode(stream proto.Transcriber_DecodeClient) (err error) {
 				break out
 			case msg := <-b.decChan:
 
-				log.Println("sending message on stream")
+				// log.Println("sending message on stream")
 				err := stream.Send(msg.Req)
 				if err != nil {
 					log.Print(err)
@@ -29,8 +29,16 @@ func (b *b32c) Decode(stream proto.Transcriber_DecodeClient) (err error) {
 
 					// Return received responses
 					if recvd.IdNonce == b.waitingDec[i].Req.IdNonce {
+
+						// return response to client
 						b.waitingDec[i].Res <- recvd
+
+						// delete entry in pending job map
 						delete(b.waitingDec, i)
+
+						// if message is processed next section does not need to
+						// be run as we have just deleted it
+						continue
 					}
 
 					// Check for expired responses

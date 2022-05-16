@@ -1,93 +1,94 @@
 package client
 
+import (
+	"context"
+	"github.com/quanterall/kitchensink/pkg/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"time"
+)
+
+func New(serverAddr string, timeout time.Duration) (
+	client *b32c, err error,
+) {
+
+	client = &b32c{
+		addr:       serverAddr,
+		encChan:    make(chan encReq, 1),
+		encRes:     make(chan *proto.EncodeResponse),
+		decChan:    make(chan decReq, 1),
+		decRes:     make(chan *proto.DecodeResponse),
+		timeout:    timeout,
+		waitingEnc: make(map[time.Time]encReq),
+		waitingDec: make(map[time.Time]decReq),
+	}
+
+	return
+}
+
+// Start up the client. Call b.cancel() to stop.
 //
-// var serverAddr = flag.String("addr", "localhost:50051",
-// 	"The server address in the format of host:port",
-// )
+// The returned send and recv functions are async by default
+// but can be used synchronously by receiving from them directly:
 //
-// type Transcribe struct {
-// 	*grpc.ClientConn
-// 	protos2.TranscriberClient
-// 	enc protos2.Transcriber_EncodeClient
-// 	dec protos2.Transcriber_DecodeClient
-// 	context.Context
-// }
-//
-// func New(serverAddr string) (c *Transcribe, disconnect func()) {
-//
-// 	// Dial the configured server address
-// 	conn, err := grpc.Dial(
-// 		serverAddr,
-// 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-// 	)
-// 	if err != nil {
-// 		log.Fatalf("fail to dial: %v", err)
-// 	}
-//
-// 	client := protos2.NewTranscriberClient(conn)
-//
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	var encode protos2.Transcriber_EncodeClient
-// 	encode, err = client.Encode(ctx)
-// 	if err != nil {
-// 		return nil, func() {}
-// 	}
-// 	var decode protos2.Transcriber_DecodeClient
-// 	decode, err = client.Decode(ctx)
-// 	if err != nil {
-// 		return nil, func() {}
-// 	}
-// 	// Set up the connection to the server.
-// 	c = &Transcribe{
-// 		ClientConn:        conn,
-// 		TranscriberClient: client,
-// 		enc:               encode,
-// 		dec:               decode,
-// 	}
-//
-// 	// Call the returned disconnect() to stop the client.
-// 	return c, func() {
-//
-// 		// shut down the Cancel context
-// 		cancel()
-//
-// 		// close the connection
-// 		err := conn.Close()
-// 		if err != nil {
-// 			log.Println(err)
-// 		}
-// 	}
-// }
-//
-// // Encode bytes into human readable transcription code based32.
-// func (t *Transcribe) Encode(req *protos2.EncodeRequest) (
-// 	res *protos2.EncodeResponse,
-// 	err error,
-// ) {
-// 	err = t.enc.Send(req)
-// 	if err != nil {
-// 		return
-// 	}
-// 	res, err = t.enc.Recv()
-// 	if err != nil {
-// 		return
-// 	}
-// 	return
-// }
-//
-// // Decode bytes from human readable transcription code based32.
-// func (t *Transcribe) Decode(req *protos2.DecodeRequest) (
-// 	res *protos2.DecodeResponse,
-// 	err error,
-// ) {
-// 	err = t.dec.Send(req)
-// 	if err != nil {
-// 		return
-// 	}
-// 	res, err = t.dec.Recv()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return
-//
-// }
+//     encRes := <-enc(req)
+//     decRes := <-dec(req)
+func (b *b32c) Start() (
+	enc func(*proto.EncodeRequest) chan *proto.EncodeResponse,
+	dec func(*proto.DecodeRequest) chan *proto.DecodeResponse,
+	stop func(),
+) {
+
+	// Dial the configured server address
+	clientConn, err := grpc.Dial(
+		b.addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Fatalf("fail to dial: %v", err)
+	}
+
+	cli := proto.NewTranscriberClient(clientConn)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	var encode proto.Transcriber_EncodeClient
+	encode, err = cli.Encode(ctx)
+	if err != nil {
+		cancelFunc()
+		return
+	}
+	var decode proto.Transcriber_DecodeClient
+	decode, err = cli.Decode(ctx)
+	if err != nil {
+		cancelFunc()
+		return
+	}
+
+	go func() {
+		log.Println("starting decoder")
+		err := b.Decode(decode)
+		if err != nil {
+			log.Print(err)
+		}
+	}()
+
+	go func() {
+		log.Println("starting encoder")
+		err := b.Encode(encode)
+		if err != nil {
+			log.Print(err)
+		}
+	}()
+
+	enc = func(req *proto.EncodeRequest) chan *proto.EncodeResponse {
+		r := newEncReq(req)
+		b.encChan <- r
+		return r.Res
+	}
+	dec = func(req *proto.DecodeRequest) chan *proto.DecodeResponse {
+		r := newDecReq(req)
+		b.decChan <- r
+		return r.Res
+	}
+	stop = cancelFunc
+	return
+}

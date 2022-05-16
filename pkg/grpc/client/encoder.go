@@ -29,8 +29,16 @@ func (b *b32c) Encode(stream proto.Transcriber_EncodeClient) (err error) {
 
 					// Return received responses
 					if recvd.IdNonce == b.waitingEnc[i].Req.IdNonce {
+
+						// return response to client
 						b.waitingEnc[i].Res <- recvd
+
+						// delete entry in pending job map
 						delete(b.waitingEnc, i)
+
+						// if message is processed next section does not need to
+						// be run as we have just deleted it
+						continue
 					}
 
 					// Check for expired responses

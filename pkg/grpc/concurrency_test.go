@@ -32,7 +32,7 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	enc, dec := cli.Start()
+	enc, dec, stopCli := cli.Start()
 
 	// Generate 10 pseudorandom 64 bit values. We do this here rather than
 	// pre-generating this separately as ultimately it is the same thing, the
@@ -295,6 +295,6 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	//     }(i)
 	// }
 	// wg.Wait()
-	// _ = stopSrvr
+	stopCli()
 	stopSrvr()
 }

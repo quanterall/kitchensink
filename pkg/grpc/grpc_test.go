@@ -18,14 +18,14 @@ func TestGRPC(t *testing.T) {
 		t.Fatal(err)
 	}
 	srvr := server.New(addr, 8)
-	stopSrvr := srvr.Start()
+	stopServer := srvr.Start()
 
 	cli, err := client.New(defaultAddr, 5*time.Second)
 	if err != nil {
 		t.Log(err)
 		t.FailNow()
 	}
-	enc, dec := cli.Start()
+	enc, dec, stopClient := cli.Start()
 
 	test1, err := hex.DecodeString("deadbeefcafe0080085000deadbeefcafe")
 	if err != nil {
@@ -47,7 +47,8 @@ func TestGRPC(t *testing.T) {
 		},
 	)
 	t.Log("done")
-	stopSrvr()
+	stopClient()
+	stopServer()
 	if string(test1) != string(decRes.GetData()) {
 		t.Fatalf(
 			"failed output equals input test: got %x expected %x",

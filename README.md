@@ -2279,3 +2279,105 @@ You can see here, the second goroutine is just waiting on the shutdown, to run t
 One goroutine handles running the stream service, the other waits for the shutdown signal and propagates this shutdown request to the stream service so everything stops correctly.
 
 It is a common problem for beginners working with concurrency in Go to have applications that have to be force-killed (`kill -9 <pid>` or `ctrl-\` on the terminal). It is necessary in Go to properly handle stopping all goroutines as they continue to execute (or wait) and the process does not terminate.
+
+----
+
+### [Step 7](steps/step7) Creating a Client
+
+Again, we want to put our nice logger in [pkg/grpc/client/log.go](pkg/grpc/client/log.go)
+
+```go
+package client
+
+import (
+	logg "log"
+	"os"
+)
+
+var log = logg.New(os.Stderr, "based32", logg.Llongfile|logg.Lmicroseconds)
+```
+
+#### Data Structures for the Client
+
+In [pkg/grpc/client/types.go](pkg/grpc/client/types.go) we will define the specific types required for the client.
+
+We will be using a concurrent architecture model that you find a lot in Go applications - clients sending requests with channels inside them for the return message.
+
+Also, like the last two parts of the server, due to the need to initialise members of the data structure that ties together the package, the primary data structure is not exported and we use a constructor function to handle this for us. For the client there is also the two request types used. We will add them first:
+
+```go
+package client
+
+import (
+    "context"
+    "github.com/quanterall/kitchensink/pkg/proto"
+    "google.golang.org/grpc"
+    "time"
+)
+
+type encReq struct {
+    Req *proto.EncodeRequest
+    Res chan *proto.EncodeResponse
+}
+
+func newEncReq(req *proto.EncodeRequest) encReq {
+    req.IdNonce = uint64(time.Now().UnixNano())
+    return encReq{Req: req, Res: make(chan *proto.EncodeResponse)}
+}
+
+type decReq struct {
+    Req *proto.DecodeRequest
+    Res chan *proto.DecodeResponse
+}
+
+func newDecReq(req *proto.DecodeRequest) decReq {
+    req.IdNonce = uint64(time.Now().UnixNano())
+    return decReq{Req: req, Res: make(chan *proto.DecodeResponse)}
+}
+```
+
+We also can make their constructor non exported, as the start function will return small closures that will encapsulate this and allow sync or async invocation with nice syntax.
+
+Next, because of the precedence of declarations, we will add the core client data structure to this file as well:
+
+```go
+type b32c struct {
+    addr       string
+    encChan    chan encReq
+    encRes     chan *proto.EncodeResponse
+    decChan    chan decReq
+    decRes     chan *proto.DecodeResponse
+    stop       <-chan struct{}
+    timeout    time.Duration
+    waitingEnc map[time.Time]encReq
+    waitingDec map[time.Time]decReq
+}
+```
+
+There is no strict rule or idiom about including types and constructors or methods, but because there is only a constructor and a start function, and the start function returns the request functions for each API and a stop function to stop the client, we are putting them in a separate file.
+
+#### Client Constructor
+
+In [pkg/grpc/client/client.go](pkg/grpc/client/client.go) we will put a constructor:
+
+```go
+
+func New(serverAddr string, timeout time.Duration) (
+    client *b32c, err error,
+) {
+
+    client = &b32c{
+        addr:       serverAddr,
+        encChan:    make(chan encReq, 1),
+        encRes:     make(chan *proto.EncodeResponse),
+        decChan:    make(chan decReq, 1),
+        decRes:     make(chan *proto.DecodeResponse),
+        timeout:    timeout,
+        waitingEnc: make(map[time.Time]encReq),
+        waitingDec: make(map[time.Time]decReq),
+    }
+
+    return
+}
+```
+

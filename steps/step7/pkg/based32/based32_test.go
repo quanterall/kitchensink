@@ -1,17 +1,12 @@
-package grpc
+package based32
 
 import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/quanterall/kitchensink/pkg/grpc/client"
-	"github.com/quanterall/kitchensink/pkg/grpc/server"
-	"github.com/quanterall/kitchensink/pkg/proto"
 	"lukechampine.com/blake3"
 	"math/rand"
-	"net"
 	"testing"
-	"time"
 )
 
 const (
@@ -19,20 +14,7 @@ const (
 	numKeys = 32
 )
 
-func TestGRPCCodec(t *testing.T) {
-
-	addr, err := net.ResolveTCPAddr("tcp", defaultAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srvr := server.New(addr, 8)
-	stopSrvr := srvr.Start()
-
-	cli, err := client.New(defaultAddr, time.Second*5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	enc, dec, stopCli := cli.Start()
+func TestCodec(t *testing.T) {
 
 	// Generate 10 pseudorandom 64 bit values. We do this here rather than
 	// pre-generating this separately as ultimately it is the same thing, the
@@ -69,7 +51,7 @@ func TestGRPCCodec(t *testing.T) {
 	}
 
 	generated += "}\n"
-	// t.Log(generated)
+	t.Log(generated)
 
 	expected := []string{
 		"7bf4667ea06fe57687a7c0c8aae869db103745a3d8c5dce5bf2fc6206d3b97e4",
@@ -160,45 +142,36 @@ func TestGRPCCodec(t *testing.T) {
 		// uniform original data. As such, this will be accounted for in the
 		// check by truncating the same amount in the check (times two, for the
 		// hex encoding of the string).
-		encRes := <-enc(
-			&proto.EncodeRequest{
-				Data: hashedSeeds[i][:len(hashedSeeds[i])-i%5],
-			},
-		)
+		encode, err := Codec.Encode(hashedSeeds[i][:len(hashedSeeds[i])-i%5])
 		if err != nil {
 			t.Fatal(err)
 		}
-		encode := encRes.GetEncodedString()
 		if encode != encodedStr[i] {
 			t.Fatalf(
-				"Decode failed, expected '%s' got '%s'",
-				encodedStr, encode,
+				"Decode failed, expected item %d '%s' got '%s'",
+				i, encodedStr[i], encode,
 			)
 		}
 		encoded += "\t\"" + encode + "\",\n"
 	}
 
 	encoded += "}\n"
-	// t.Log(encoded)
+	t.Log(encoded)
+
 	// Next, decode the encodedStr above, which should be the output of the
 	// original generated seeds, with the index mod 5 truncations performed on
 	// each as was done to generate them.
 
 	for i := range encodedStr {
 
-		res := <-dec(
-			&proto.DecodeRequest{
-				EncodedString: encodedStr[i],
-			},
-		)
-		// res, err := Codec.Decode(encodedStr[i])
+		res, err := Codec.Decode(encodedStr[i])
 		if err != nil {
 			t.Fatalf("error: '%v'", err)
 		}
 		elen := len(expected[i])
 		etrimlen := 2 * (i % 5)
 		expectedHex := expected[i][:elen-etrimlen]
-		resHex := fmt.Sprintf("%x", res.GetData())
+		resHex := fmt.Sprintf("%x", res)
 		if resHex != expectedHex {
 			t.Fatalf(
 				"got: '%s' expected: '%s'",
@@ -207,7 +180,4 @@ func TestGRPCCodec(t *testing.T) {
 			)
 		}
 	}
-
-	stopCli()
-	stopSrvr()
 }
