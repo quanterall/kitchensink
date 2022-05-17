@@ -89,6 +89,10 @@ clear detail. Many tutorials leave out important things, and to ensure this does
 not happen, each stage's parts will be also found in the [steps](./steps)
 folder at the root of the repository.
 
+[->contents](#kitchensink)
+
+----
+
 ### Prerequisites
 
 In general, you will be deploying your binaries to systems also running ubuntu
@@ -99,6 +103,8 @@ container system here.
 Necessary things that you probably already have:
 
     sudo apt install -y build-essential git wget curl autoconf automake libtool
+
+[->contents](#kitchensink)
 
 ### Install Go
 
@@ -132,6 +138,8 @@ can be very problematic if you are working on a BIG application (Go apps are
 generally under 60mb in size but this is still a lot in a source code
 repository).
 
+[->contents](#kitchensink)
+
 ### Install Protobuf Compiler
 
 In order to build the project you will need the protobuf compiler installed.
@@ -141,6 +149,8 @@ transcription codec.
 
     sudo apt install -y protobuf-compiler
     protoc --version  # Ensure compiler version is 3+
+
+[->contents](#kitchensink)
 
 ### Install gRPC plugins for Go
 
@@ -153,6 +163,8 @@ commands will not be accessible.
 
     go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
+
+[->contents](#kitchensink)
 
 ### Initialize your repository
 
@@ -170,6 +182,8 @@ match what you defined in your version of the above statement.**
 
 *If you don't upload this anywhere, you can just use what is defined here, and
 avoid this chore.*
+
+[->contents](#kitchensink)
 
 ## Step By Step:
 
@@ -192,6 +206,8 @@ unlicence unless I am forking code with other licences.
 Inside `pkg` create a new directory `proto` and create a new
 file `based32.proto`
 
+[->contents](#kitchensink)
+
 #### The header section
 
 ```protobuf
@@ -208,6 +224,8 @@ Second, the package line has no effect when using the Go plugin for protobuf.
 Third is the line that actually does things for the Go version. The path is the
 same as what appears in the `import` line where this package is being imported
 from, and should be the same as the repository root, plus `pkg/proto`.
+
+[->contents](#kitchensink)
 
 #### The service definition
 
@@ -231,6 +249,8 @@ can be ok to let Go manage spawning and freeing goroutines, for a serious large
 scale or high performance API, you should be keeping the goroutines warm and
 delivering them jobs with channels, as we will be in this tutorial. Teaching
 concurrency is one of the goals of this tutorial.
+
+[->contents](#kitchensink)
 
 #### The encode messages
 
@@ -264,6 +284,8 @@ The union type was left out of Go because it breaks C's otherwise strict typing
 system (and yes, this has been one of the many ways in which C code has been
 exploited to break security, which is why Go lacks it).
 
+[->contents](#kitchensink)
+
 #### The decode messages
 
 ```protobuf
@@ -281,6 +303,8 @@ message DecodeResponse {
 
 They are exactly the same, except the types are reversed, encode is bytes to
 string, decode is string to bytes, reversing the process.
+
+[->contents](#kitchensink)
 
 #### The errors
 
@@ -305,6 +329,8 @@ is a purely programmer error, that would be when calling encode with nil instead
 of a byte slice `[]byte`. In a real project you would probably have to add these
 as you go along, but we will skip that for now, and this is part of the reason
 why the tutorial uses such a simple application.
+
+[->contents](#kitchensink)
 
 ----
 
@@ -333,6 +359,8 @@ between Go and protobuf formats for the defined messages.
 
 `based32_grpc.pb.go` provides the methods to use gRPC to implement the API as
 described in the `service` section of the `based32.proto` file.
+
+[->contents](#kitchensink)
 
 ----
 
@@ -380,11 +408,15 @@ this interface should uphold. This is a good practise to help users of your
 libraries know what to expect, and so you don't create or inspire someone to
 create an 'undefined behaviour' that could become a security vulnerability.
 
+[->contents](#kitchensink)
+
 #### The concrete type
 
 Create a new folder [pkg/codec](pkg/codec) and in it create a new file called `types.go`. This is
 where we will define the main types that will be used by packages and
 applications that use our code.
+
+[->contents](#kitchensink)
 
 #### Package header
 
@@ -395,6 +427,8 @@ import (
     "github.com/quanterall/kitchensink/pkg/codecer"
 )
 ```
+
+[->contents](#kitchensink)
 
 #### Defining a generalised type framework
 
@@ -450,6 +484,8 @@ type Codec struct {
 }
 ```
 
+[->contents](#kitchensink)
+
 #### Interface Implementation Assertion
 
 The following var line makes it so the compiler will throw an error if the
@@ -462,6 +498,8 @@ var _ codecer.Codecer = &Codec{}
 ```
 
 This is a good way to avoid problems when trying to use a concrete type, if the interface was changed, for example, and the existing implementations did not have the correct function signatures, the compiler will tell you this line doesn't work before, and in your IDE, should get red squiggly lines if something like this happens.
+
+[->contents](#kitchensink)
 
 #### Interface implementation using an embedded function
 
@@ -514,6 +552,8 @@ func (c *Codec) Encode(input []byte) (string, error) { return c.Encoder(input) }
 func (c *Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }
 ```
 
+[->contents](#kitchensink)
+
 #### Making the gRPC generated code more useful with some extensions
 
 There is two minor gotchas that current versions of the go plugins for protoc to
@@ -541,6 +581,8 @@ does not make access to them idiomatic. We are teaching you idiomatic Go here,
 so this is necessary to account for the inconsistency of the API of the
 generated code.
 
+[->contents](#kitchensink)
+
 #### Documentation comments in Go
 
 First, take note that comments above the package line should start "Package
@@ -567,6 +609,8 @@ to write it that way.
 package proto
 ````
 
+[->contents](#kitchensink)
+
 #### go:generate line
 
 This is a convenient location to place the generator that processes the
@@ -580,6 +624,8 @@ In Goland IDE this can be invoked directly from the editor.
 // or if a wildcard was used ( go generate ./... ).
 //go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./based32.proto
 ```
+
+[->contents](#kitchensink)
 
 #### Adding a Stringer `Error()` for the generated Error type
 
@@ -615,6 +661,8 @@ func (x Error) Error() string {
 
 ```
 
+[->contents](#kitchensink)
+
 #### Convenience types for results
 
 The following types will be used elsewhere, as well as for the following create
@@ -637,6 +685,8 @@ type DecodeRes struct {
 ```
 
 Yes, if you wanted to, you could use a structured type with error and return value if you preferred. The extra work for Go programmers is far greater than the no extra work for variant type using programmers.
+
+[->contents](#kitchensink)
 
 #### Create Response Helper Functions
 
@@ -718,11 +768,15 @@ The code generator creates two types, the `NameResponse_Error` and `NameResponse
 
 Obviously, this puts a pretty onerous burden on you as a Go programmer when you are obliged to use these, but this helper can be modified to fit any `oneof` using protobuf message and shift this ugly thing away from your main algorithms.
 
+[->contents](#kitchensink)
+
 ----
 
 ### [Step 4](steps/step4) The Encoder
 
 Next step is the actual library that the protobufs and interface and types were all created for.
+
+[->contents](#kitchensink)
 
 #### Always write code to be extensible
 
@@ -734,6 +788,8 @@ For this we have 4 functions and while we could hard code everything with consta
 
 The time cost of preparing a codebase to be extensible and modular is tiny in comparison, maybe an extra half an hour as you start on a library. Experience says that the shortcut is not worth it. You never know when you are the one who has to extend your own code later on, and two days later it's finally in a state you can add functionality.
 
+[->contents](#kitchensink)
+
 #### Helper functions
 
 The only exception to this is when there is literally only one or at most two functions to deal with a specific type of data. These are often referred to as "helpers" or "convenience functions" and do not need to be extensible as they are very small and self contained.
@@ -741,6 +797,8 @@ The only exception to this is when there is literally only one or at most two fu
 These functions can sometimes be tricky to know where to put them, and often end up in collections under package names with terrible names like "util" or "tools" or "helpers". This can be problematic because very often they are accessory to another type, and doing this creates confusing crosslinks that can lead you into a circular dependency.
 
 As such, my advice is to keep helpers where they are used, and don't export them, unless they are necessary, like the response helper functions we made previously for the `proto` package.
+
+[->contents](#kitchensink)
 
 #### Log at the site
 
@@ -774,6 +832,8 @@ It is ok to leave one level of indirection in the site of logging errors, that i
 When you further have layers of indirection like interfaces and copies of pointers to objects that are causing errors, knowing which place to look for the bug will take up as much time as actually fixing it.
 
 It may be that you are never writing algorithms that need any real debugging, many "programmers" rarely have to do much debugging. But we don't want to churn out script writers only, we want to make sure that everyone has at least been introduced to the idea of debugging. 
+
+[->contents](#kitchensink)
 
 #### Create an Initialiser
 
@@ -906,6 +966,8 @@ Note that the returns can be left 'naked' like this because the variables are de
 >
 > (Of course, long source files are a bad thing, as equally as many that are too small... it is something that should be relatively intuitive since we all have brains that work much the same way.)
 
+[->contents](#kitchensink)
+
 #### Writing the check function
 
 The first thing we need for the codec is the check function. The check makes a checksum value. We additionally add the requirement that the check serves double duty as a pad to fill out the Base32 strings, which otherwise get ugly padding characters, usually `=` in the case of standard Go base32 library. Thus, the check function also includes a length parameter.
@@ -949,6 +1011,8 @@ It also introduces the use of one of the best hash functions currently available
 
 The length is variable as we are designing this algorithm to combine padding together with the check. So, essentially the way it works is we take the modulus of 5 (remainder of the division) of the length of the data, and pad it out to the next biggest multiple of 5 bytes, which is 8 base32 symbols. The formula for this comes next.
 
+[->contents](#kitchensink)
+
 #### Creating the Encoder
 
 In all cases, when creating a codec, the first step is making the encoder. It is impossible to decode something that doesn't yet exist, the encoder is *a priori*, that is, it comes first, both logically and temporally.
@@ -956,6 +1020,8 @@ In all cases, when creating a codec, the first step is making the encoder. It is
 But before we can make the encoder, we also need a function to compute the correct check length for the payload data. 
 
 Further, the necessity of a variable length requires also that the length of the check be known before decoding, so this becomes a prefix of the encoding.
+
+[->contents](#kitchensink)
 
 #### Calculating the check length
 
@@ -984,6 +1050,8 @@ func getCheckLen(length int) (checkLen int) {
 The function takes the input of the length of our message in bytes, and returns the correct length for the check. The result is that for an equal multiple of 5 bytes, we add 5 bytes of check, and 4, 3, 2 or 1 bytes for each of the variations that are more than this multiple, plus accounting for the extra byte to store the check length.
 
 > The check length byte in fact only uses the first 3 bits, as it can be no more than 5, which requires 3 bits of encoding. Keep this in mind for later as we use this to abbreviate the codes as implicitly their largest 5 bits must be zero, which is precisely one base32 character in length, thus it always prefixes with a `q` as described by the character set we are using for this, based on the Bech32 standard used by Bitcoin and Cosmos, which reduces the length of the encoded value by one character, and must be added back to correctly decode.
+
+[->contents](#kitchensink)
 
 #### Writing the Encoder Implementation
 
@@ -1039,6 +1107,8 @@ Note that the Ethereum address standard only recently added a check value that u
 
 The comments explain every step in the process. 
 
+[->contents](#kitchensink)
+
 #### About `make()`
 
 First, as this is the first point at which the builting function `make` appears, this is a function that initialises and populates the three main types of "reference types" (values that are actually pointers), slice (`[]T`), map (`map[K]V`) and channel (`chan T`). 
@@ -1082,6 +1152,8 @@ It is acceptable to delegate this allocation logic for some purposes to the runt
 > In the case of the Base32 encoding, we are using standard 7 bit ASCII symbols so we know that we can cut off the first one to remove the redundant zero that appears because of the maximum 3 bits used for the check length prefix value, leave 5 bits in front (due to the backwards encoding convention for numbers within machine words). 
 >
 > *whew* A lot to explain about the algorithm above, but vital to understand for anyone who wants to work with slices of bytes in Go, which basically means anything involving binary encoding. This will be as deeply technical as this tutorial gets, it's not essential to understand it to do the tutorial, but this explanation is added for the benefit of those who do or will need to work with binary encoded data.
+
+[->contents](#kitchensink)
 
 #### Creating the Check function
 
@@ -1176,6 +1248,8 @@ Note that you cannot create an array using a variable. Only constants and litera
 
 Casting bytes to string creates an immutable copy so it adds a copy operation. If the amount of data is very large, you write a custom comparison function to avoid this duplication, but for short amounts of data, the extra copy stays on the stack and does not take a lot of time, in return for the simplified comparison as shown above.
 
+[->contents](#kitchensink)
+
 #### Creating the Decoder function
 
 The decoder cuts off the HRP, prepends the always zero first base32 character, decodes using the Base32 encoder (it is created prior to the encode function previously, and is actually a codec, though I used the name `enc`, it also has a decode function).
@@ -1265,6 +1339,8 @@ The decoder cuts off the HRP, prepends the always zero first base32 character, d
 
 Note that in a couple of places there are log prints. This is because when developing this, it was critical to be able to see what exactly was incorrect, in tests where the result was wrong.
 
+[->contents](#kitchensink)
+
 ----
 
 ### [Step 5](steps/step5) Testing the algorithm
@@ -1276,6 +1352,8 @@ The first way and best way to see the rubber meet the road in Go is writing test
 Tests are not necessarily going to prove everything is correct, for this there is more advanced techniques to work with more complex algorithms than we have written in this tutorial. For this test we just need a decently broad set of inputs that we can ensure are encoded correctly, and that are decoded correctly.
 
 For this, rather than creating truly random inputs, we exploit the determinism of the `math/rand` library to generate a deterministic set of inputs that will be variable enough to prove the code is working.
+
+[->contents](#kitchensink)
 
 #### Random generation of test data
 
@@ -1396,6 +1474,8 @@ First thing to explain is how tests are constructed.
 1. The filename should be named the same as the code it tests, in general, the code we are testing is in `based32.go` and so the convention is the test for this source code should be `based32_test.go`. 
 2. The signature of a test function should be `func TestSomething(t *testing.T) `where "Something" is the name of the type with the methods we are testing, or the specific name of the methods of the type we are testing, or something along these lines. It is not mandatory to use existing names, but it is recommended.
 
+[->contents](#kitchensink)
+
 #### Running the tests
 
 To run the tests, you simply need to designate the package folder where the tests you want to run are living:
@@ -1405,6 +1485,8 @@ To run the tests, you simply need to designate the package folder where the test
 
 Note the `./` in front of the folder. This means "in the current directory" in Unix file path convention, and the reason why we have to specify it is because otherwise, the `go` tool expects to be given a network path like `github.com/quanterall/kitchensink/pkg/based32` which would then clone the repository, or use a cached version, and then run the tests in that directory for you.
 
+[->contents](#kitchensink)
+
 #### Enabling logging in the tests
 
 In order to update automatically generated, deterministic data like we are using in this test, we need the test to print out the data that it should be generating, according to what we believe is correct code. 
@@ -1412,6 +1494,8 @@ In order to update automatically generated, deterministic data like we are using
 If you ran the command as above in the previous section, you would have seen that it passed, assuming you didn't mess up the code while copy and pasting it.
 
 However, as you will know if you read closely in the text, there is a section of the code that invokes `t.Log()` which as you would expect, will print something to the terminal. To make this happen, you use the `-v` flag after the subcommand `test`.
+
+[->contents](#kitchensink)
 
 #### The Go tool recursive descent notation
 
@@ -1426,6 +1510,8 @@ In old unix file commands, there is disagreement between numerous different comm
 To make things more consistent and some 'grandfatherly' guidance from the guys who actually first invented Unix (Ken Thompson and Rob Pike were both involved in the original invention of Unix at Bell Labs, Pike was mostly involved with documenting the C language), the Go tool introduces the `...` path to indicate the same thing. 
 
 Go programmers pretty much like using it whenever they make tools to do this sort of thing, and in Go the recursive descent of filesystems is a single function that you load with a closure.
+
+[->contents](#kitchensink)
 
 #### Running the tests with logging and recursive descent
 
@@ -1487,6 +1573,8 @@ And now, as you can see, our test passes, and if you look a little closer, you c
 The reason for that, is that we want to use this property to enable us to create, automatically, a decent swathe of test inputs to use for the tests, and all we have written right now is a test that makes sure and demonstrates that the random function does indeed generate completely deterministic values, as does the hash function that we feed these deterministic values.
 
 We don't need to test the values are identical, because they have to be, by their definition, as does the hash, so we use the hash values, as from these we can generate a set of tests that make sure our implementation of `Codec` works as it is supposed to be.
+
+[->contents](#kitchensink)
 
 #### Actually testing the Encoder and Decoder
 
@@ -1727,6 +1815,8 @@ In some cases, it makes sense to test multiple failure modes, but for the sake o
 
 Writing good tests is a bit of a black art, and the task gets more and more complicated the more complex the algorithms.
 
+[->contents](#kitchensink)
+
 ----
 
 ### [Step 6](steps/step6) Creating a Server
@@ -1738,6 +1828,8 @@ The reason why we separate the two things is because for tests, we want to spawn
 Because our service uses gRPC/Protobuf for its messages, for the reason that it is binary, and supported by almost every major langage, we will put the service inside `pkg/grpc/server`.
 
 We create the server first for the same reason as we create the encoder first. The entity is apriori in the two part concept. You can't have a client without a server, but you can have a server without a client, as it is impossible to define a request without first having data to request.
+
+[->contents](#kitchensink)
 
 #### The Logger
 
@@ -1778,6 +1870,8 @@ You can gloss over this, if you want to, but you will come back to it if you int
 
 This little file makes sure that you can put log prints in anywhere in your code, and when they are printed out, easily jump into the codebase exactly where the problem comes up.
 
+[->contents](#kitchensink)
+
 #### Implementing the worker pool
 
 Continuing, as always, with steps that build upon the previous steps and not leaving you with code that would not compile due to undefined symbols, the very first thing you need to put in the package is the `Transcriber`, which is the name we will give to our worker pool.
@@ -1811,9 +1905,13 @@ type transcriber struct {
 
 There is a few explanations that need to be made to start with.
 
+[->contents](#kitchensink)
+
 #### When to not export an externally used type
 
 Here is a case where we are not exporting a type that has methods that will be used by other packages that will import this package. The reason is that channels and slices both need initialisation before they can be used, as performing operations on these variables that have not been initialised will cause a `nil` panic. Thus, we instead will export an initialiser function, which will take care of this initialisation for us.
+
+[->contents](#kitchensink)
 
 #### About Channels
 
@@ -1835,9 +1933,13 @@ For each API call we have a pair of channels created in this structure, one for 
 
 The last point, is that each of the 4 channels we have for our two API methods call and response are slices. This allows us to define how many threads we will warm up when starting up the service to handle the expected workload. The reason for making this pre-allocated is again, response latency. This may not be so important in some types of applications, but in all cases, the result of pre-allocation is better performance and a lack of unexpected unbounded resource allocation, commonly known as a "resource leak" which can extend to not just variables but also channels and goroutines, both of which have a small but nonzero cost in allocation time and memory utilisation until they are freed by the garbage collector.
 
+[->contents](#kitchensink)
+
 #### About Waitgroups
 
 The last element of the struct is a `sync.Waitgroup`. This is an atomic counter which can be used to keep track of the number of threads that are running, and allows you to write code that holds things open until all of the wait group are `Done` when shutting down.
+
+[->contents](#kitchensink)
 
 #### Initialising the Worker Pool
 
@@ -1889,6 +1991,8 @@ In this code, we first make the slices of channels, and then run a loop for each
 
 Note that it is possible to use literals to initialise maps and slices, but it is not possible to use literals to initialise channels. However, initialising slices and maps with literals is not considered idiomatic, and partly because make allows the initial allocation of slice length, capacity or map capacity, and as mentioned previously, pre-allocation prevents unpredictable delays during allocation especially in tight initialisation or iteration loops.
 
+[->contents](#kitchensink)
+
 #### Atomic Counters
 
 You wil also notice `encCallCount` and `decCallCount` are `atomic` types.
@@ -1902,6 +2006,8 @@ We are using the [go.uber.org/atomic](https://pkg.go.dev/go.uber.org/atomic) var
 Uber's version is better, because it creates proper initialisers for everything, whereas with the inbuilt `sync/atomic` library we have to boilerplate all that stuff to do it correctly. As I say, in this case, it's just habit as the non-pointer version of `sync.Int32` would serve just as well, but it is rare when one is using atomics that one is only doing such a small and singular thing with it as this, usually it will appear in multiple places protecting exclusive access with nicer syntax than mutexes, and facilitating very fast increment and decrement operations for counters, which is our use case here.
 
 Note that strings are a special case of a data type that is actually a pointer in the underlying implementation, as they are immutable, and their memory area is marked not writeable to the memory management unit which will cause a segmentation fault and halt the program. Thus they are the sole exception for reference types in atomic variables, as they are not changeable, there cannot be a read/write race condition. A modified string is a new pointer and implicitly has no conflict with the old one. Though there can be a race condition on the rewriting of the pointer, which is why an atomic string is needed.
+
+[->contents](#kitchensink)
 
 #### Running the Worker Pool
 
@@ -1961,6 +2067,8 @@ This is the in-process equivalent of the RPC that is the next part of the server
 
 It's important to understand that part of the reason why Go has coroutines (goroutines) and channels is precisely to act as a model for the external, network facing parts, to provide the programmer with one model and two different implementations, one for inside, one for outside, to enable the accurate modelling of concurrent processes that communicate with each other. Other programming languages don't strive for this consistency and for which reason the "async" model of programming is more often used, which hides the handler and callback mechanisms and the processing is also, usually single threaded, which is less performant.
 
+[->contents](#kitchensink)
+
 #### Logging the call counts
 
 There isn't any point in putting the counter in there if it wasn't going to come back out somewhere, and the logical place for this is in a log print that summarises the activity of the server's run:
@@ -1976,6 +2084,8 @@ func (t *transcriber) logCallCounts() {
 	)
 }
 ```
+[->contents](#kitchensink)
+
 #### Starting the worker pool
 
 The start function spawns the workers in a loop, calling the `handle` function for each worker, spawning an individual thread for each, and returns a function that runs when they stop. In this case it just waits until all the processes have completed their cleanup before calling the `logCallCounts` function.
@@ -2003,6 +2113,8 @@ func (t *transcriber) Start() (cleanup func()) {
 	}
 }
 ```
+
+[->contents](#kitchensink)
 
 #### Creating the gRPC Service
 
@@ -2284,6 +2396,8 @@ One goroutine handles running the stream service, the other waits for the shutdo
 
 It is a common problem for beginners working with concurrency in Go to have applications that have to be force-killed (`kill -9 <pid>` or `ctrl-\` on the terminal). It is necessary in Go to properly handle stopping all goroutines as they continue to execute (or wait) and the process does not terminate.
 
+[->contents](#kitchensink)
+
 ----
 
 ### [Step 7](steps/step7) Creating a Client
@@ -2300,6 +2414,8 @@ import (
 
 var log = logg.New(os.Stderr, "based32", logg.Llongfile|logg.Lmicroseconds)
 ```
+
+[->contents](#kitchensink)
 
 #### Data Structures for the Client
 
@@ -2357,9 +2473,11 @@ type b32c struct {
 }
 ```
 
-The stop channel for the client is provided by a `context.Context` and here we see an example of a one way channel. This one can only receive. This is often a good idea when there is no reason anyway for signals to be triggered in the opposite direction. Really, stop channels are not one of these types of cases, but the context package has them this way, and we need to listen on them as cancelling the context closes this channel and we need to listen on this channel to close the stream handlers.
+The stop channel for the client is provided by a `context.Context` and here we see an example of a one way channel. This one can only receive. This is often a good idea when there is no reason anyway for signals to be triggered in the opposite direction. Really, stop channels are not one of these types of cases, but the context package has them this way, and we need to listen on them as cancelling the context closes this channel and we need to listen on this channel to close the stream handlers.
 
 There is no strict rule or idiom about including types and constructors or methods, but because there is only a constructor and a start function, and the start function returns the request functions for each API and a stop function to stop the client, we are putting them in a separate file.
+
+[->contents](#kitchensink)
 
 #### Client Constructor
 
@@ -2387,6 +2505,8 @@ func New(serverAddr string, timeout time.Duration) (
 ```
 
 As you can see, the majority of this function is initialising channels and maps.
+
+[->contents](#kitchensink)
 
 #### The Encode and Decode Handlers
 
@@ -2510,6 +2630,8 @@ Lastly, using the timeout value selected, if a request gets hung up for more tim
 
 When one has written a lot of peer to peer and blockchain type code, it is standard practice to expect connection failures and potential crashes on peers, and simply drop things and start again. Failures can be from many causes, network connections, denial of service attacks, bugs in network handlers, and bugs in the applications attached to the network handlers, and, of course, attacks on the applications themselves. Such misbehaviour is generally termed "crash failures" but can be caused by malice, and called "byzantine". Handling crash failure cases is essential in distributed systems, byzantine failures take a little more design and some game theory to work around.
 
+[->contents](#kitchensink)
+
 #### Copy Paste Generic Generator
 
 Inside the `pkg/grpc/client` folder create a new folder `gen` and inside that, create a new file "derive.go".
@@ -2581,7 +2703,9 @@ go generate ./...
 
 In the second case, you will see it will re-run the protobuf compiler as well.
 
-> For the benefit of developers of this tutorial itself, we have also added a generator that updates the table of contents all markdown documents in the repository inside `doc.go` at the root of the repository. This file was placed there initially just so that there was a "package" at the root of the repository, but it becomes a handy place to put `go:generate` lines that do other things, like updating the table of contents. Note that unless you first run `scripts/installtoc.sh` which will require you to install an ubuntu debian package called "fswatch" and then a simple go app which generates table of contents for markdown files called `tocenize`. See the [scripts/](scripts/) folder for these items.
+> For the benefit of developers of this tutorial itself, we have also added a generator that updates the table of contents all markdown documents in the repository inside `doc.go` at the root of the repository. This file was placed there initially just so that there was a "package" at the root of the repository, but it becomes a handy place to put `go:generate` lines that do other things, like updating the table of contents. Note that unless you first run `scripts/installtoc.sh` which will require you to install an ubuntu debian package called "fswatch" and then a simple go app which generates table of contents for markdown files called `tocenize`. See the [scripts/](scripts/) folder for these items.
+
+[->contents](#kitchensink)
 
 ----
 
