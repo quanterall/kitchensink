@@ -1,0 +1,42 @@
+syntax = "proto3";
+package proto;
+option go_package = "github.com/quanterall/kitchensink/pkg/proto";
+
+service Transcriber {
+  rpc Encode(stream EncodeRequest) returns (stream EncodeResponse);
+  rpc Decode(stream DecodeRequest) returns (stream DecodeResponse);
+}
+
+message EncodeRequest {
+  uint64 IdNonce = 1;
+  bytes Data = 2;
+}
+
+message EncodeResponse {
+  uint64 IdNonce = 1;
+  oneof Encoded {
+    string EncodedString = 2;
+    Error Error = 3;
+  }
+}
+
+message DecodeRequest{
+  uint64 IdNonce = 1;
+  string EncodedString = 2;
+}
+
+message DecodeResponse {
+  uint64 IdNonce = 1;
+  oneof Decoded {
+    bytes Data = 2;
+    Error Error = 3;
+  }
+}
+
+enum Error {
+  ZERO_LENGTH = 0;
+  CHECK_FAILED = 1;
+  NIL_SLICE = 2;
+  CHECK_TOO_SHORT = 3;
+  INCORRECT_HUMAN_READABLE_PART = 4;
+}

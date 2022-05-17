@@ -61,6 +61,9 @@
 	- [Step 7 Creating a Client](#step-7-creating-a-client)
 		- [Data Structures for the Client](#data-structures-for-the-client)
 		- [Client Constructor](#client-constructor)
+		- [The Encode and Decode Handlers](#the-encode-and-decode-handlers)
+		- [Copy Paste Generic Generator](#copy-paste-generic-generator)
+	- [Step 8 Testing the gRPC server](#step-8-testing-the-grpc-server)
 
 ## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
