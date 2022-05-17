@@ -2676,9 +2676,11 @@ func main() {
 }
 ```
 
-It just occurs to me as I write this, that this will be the first example of reading and writing files in this tutorial. As such, we are using the simplest possible tools to do this. This little piece of code essentially does for you what you can do manually in about 2 minutes on such a task, but we now don't have to do this work.
+It just occurs to me as I write this, that this will be the first example of reading and writing files in this tutorial. As such, we are using the simplest possible tools to do this, from `ioutil` library. This little piece of code essentially does for you what you can do manually in about 2 minutes on such a task, but we now don't have to do this work.
 
-It also just occurs to me that it would have been a terrible omission to not introduce writing generators in this tutorial, since in Go it is an essential skill. This is the simplest possible code generator that you can write. This doesn't require any special handling or duplication in the form of writing a complex template and feeding it the respective sets of values to place in each field. The `encoder.go` file is live code that also compiles, and once you write this, you have the two api handlers for both sides, you can change one, run `go generate ./...` and the counterpart is updated to match.
+It also just occurs to me that it would have been a terrible omission to not introduce writing generators in this tutorial, since in Go it is an essential skill. This is the simplest possible code generator that you can write. This doesn't require any special handling or duplication in the form of writing a complex template and feeding it the respective sets of values to place in each field. 
+
+The `encoder.go` file is live code that also compiles, and once you write this, you have the two API handlers for both sides, you can change one, run `go generate ./...` and the counterpart is updated to match.
 
 This isn't the first time we have shown the use of `go:generate` however. It is not the only way to handle these things, as many projects will use `Makefile`s in this capacity, but it's not necessary and is a step that isn't done often, so instead, you can put these lines in appropriate places and update the relevant source code automatically in one step over the whole repository.
 
