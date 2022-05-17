@@ -1585,7 +1585,7 @@ So, add this at the end of the test function
 	}
 ```
 
-Note that it algorithmically trims the bytes of intput according to modulus 5, and performs the equivalent trim on the hex strings for the output to enable simple comparison of the bytes. The raw bytes this is `%5` but for hex it is multiplied by 2 as each hexadecimal character represents half a byte.
+Note that it algorithmically trims the bytes of intput according to modulus 5, and performs the equivalent trim on the hex strings for the output to enable simple comparison of the bytes. The raw bytes this is `%5` but for hex it is multiplied by 2 as each hexadecimal character represents half a byte.
 
 Running `go test -v ./...` will then yield this new result:
 
@@ -1893,7 +1893,7 @@ Note that it is possible to use literals to initialise maps and slices, but it i
 
 You wil also notice `encCallCount` and `decCallCount` are `atomic` types.
 
-Atomic values only permit one accessor at a time, and have a built-in lock that protects their access, if two threads try to access an atomic at exactly the same time, the first one gets first go and then the second thread waits until the value has been read or written (`Load` and `Store`) before it gets its access. They default to access by copy, so if the data inside the atomic is a pointer, one should use `sync/mutex` locks instead. For this reason as you will see if you inspect the documentation for this package, all of the types that are available on uber's version of `atomic` are "value" types.
+Atomic values only permit one accessor at a time, and have a built-in lock that protects their access, if two threads try to access an atomic at exactly the same time, the first one gets first go and then the second thread waits until the value has been read or written (`Load` and `Store`) before it gets its access. They default to access by copy, so if the data inside the atomic is a pointer, one should use `sync/mutex` locks instead. For this reason as you will see if you inspect the documentation for this package, all of the types that are available on uber's version of `atomic` are "value" types.
 
 One can encapsulate *any* variable in an `atomic.Value` and the Go standard library `sync/atomic` . To see more about this, I will introduce you to `godoc` which lives at [https://pkg.go.dev](https://pkg.go.dev) - here is the `sync/atomic` package: https://pkg.go.dev/sync/atomic
 
@@ -2018,7 +2018,7 @@ With large APIs with lower overall workloads, it is fine to let gRPC handle the 
 
 Personally, I prefer always handling the concurrency, because no matter how much load my services get, it can be later on when I have no part in the exercise, that someone tries to use my code for a high load scenario and because I wrote it from scratch to be optimal, it will not fail in the hands of anyone. Besides this, having written highly time sensitive multicast services previously, it is now just habit for me to write my own concurrency handling, and once you get used to doing it, you won't like to leave it to others either once you have had your own goroutine leak or two, you won't want to leave it up to chance either.
 
-As with the worker pool, we are going to create a type that is not exported and export the initialiser due to the necessity of the use of `make()` when using objects within the structure.
+As with the worker pool, we are going to create a type that is not exported and export the initialiser due to the necessity of the use of `make()` when using objects within the structure.
 
 In order to support that, we must create a constructor function, here we have `New`, which accepts a network address and the number of worker threads we want to run to handle requests.
 
@@ -2282,7 +2282,7 @@ You can see here, the second goroutine is just waiting on the shutdown, to run t
 
 One goroutine handles running the stream service, the other waits for the shutdown signal and propagates this shutdown request to the stream service so everything stops correctly.
 
-It is a common problem for beginners working with concurrency in Go to have applications that have to be force-killed (`kill -9 <pid>` or `ctrl-\` on the terminal). It is necessary in Go to properly handle stopping all goroutines as they continue to execute (or wait) and the process does not terminate.
+It is a common problem for beginners working with concurrency in Go to have applications that have to be force-killed (`kill -9 <pid>` or `ctrl-\` on the terminal). It is necessary in Go to properly handle stopping all goroutines as they continue to execute (or wait) and the process does not terminate.
 
 ----
 
@@ -2351,12 +2351,13 @@ type b32c struct {
     encRes     chan *proto.EncodeResponse
     decChan    chan decReq
     decRes     chan *proto.DecodeResponse
-    stop       <-chan struct{}
     timeout    time.Duration
     waitingEnc map[time.Time]encReq
     waitingDec map[time.Time]decReq
 }
 ```
+
+The stop channel for the client is provided by a `context.Context` and here we see an example of a one way channel. This one can only receive. This is often a good idea when there is no reason anyway for signals to be triggered in the opposite direction. Really, stop channels are not one of these types of cases, but the context package has them this way, and we need to listen on them as cancelling the context closes this channel and we need to listen on this channel to close the stream handlers.
 
 There is no strict rule or idiom about including types and constructors or methods, but because there is only a constructor and a start function, and the start function returns the request functions for each API and a stop function to stop the client, we are putting them in a separate file.
 
@@ -2384,4 +2385,205 @@ func New(serverAddr string, timeout time.Duration) (
     return
 }
 ```
+
+As you can see, the majority of this function is initialising channels and maps.
+
+#### The Encode and Decode Handlers
+
+We are not going to put the function to start up the client yet, because we first need the handlers for the encode and decode API calls.
+
+These two things are literally identical with `En` swapped for `De` in the names things. So we will just pile the two together here.
+
+For cases where there is more calls to put in here, where the differences are similarly simple, just passing values of a type to handlers over channels all with consistent naming schemes, once you see more than two identical functions like these, you would write a generator, which is provided several names to put in each slot and spit out several files each with the same code with different names. Again, this is essentially what C++ templates and Java and Rust generics are, there really is no practical reason why they need to exist in a language.
+
+But we won't make generators for two of them, because writing one, copying and replacing the different characters is not terribly onerous. Besides this, with generators, generally one has to have a testable prototype to make the code work, before making the copy paste substitutions. These substitutions, in the case of this particular code, could literally be done with search and replace.
+
+So, actually, we are going to do this, as an alternative example to how to write a generator for generic implementations to the standard common use of templates. In this case, we will demonstrate the use of string search and replace functions.
+
+So, first, the encode client handler:
+
+```go
+package client
+
+import (
+	"github.com/quanterall/kitchensink/pkg/proto"
+	"io"
+	"time"
+)
+
+func (b *b32c) Encode(stream proto.Transcriber_EncodeClient) (err error) {
+
+	go func(stream proto.Transcriber_EncodeClient) {
+	out:
+		for {
+			select {
+			case <-b.stop:
+
+				break out
+			case msg := <-b.encChan:
+
+				// log.Println("sending message on stream")
+				err := stream.Send(msg.Req)
+				if err != nil {
+					log.Print(err)
+				}
+				b.waitingEnc[time.Now()] = msg
+			case recvd := <-b.encRes:
+
+				for i := range b.waitingEnc {
+
+					// Return received responses
+					if recvd.IdNonce == b.waitingEnc[i].Req.IdNonce {
+
+						// return response to client
+						b.waitingEnc[i].Res <- recvd
+
+						// delete entry in pending job map
+						delete(b.waitingEnc, i)
+
+						// if message is processed next section does not need to
+						// be run as we have just deleted it
+						continue
+					}
+
+					// Check for expired responses
+					if i.Add(b.timeout).Before(time.Now()) {
+
+						log.Println(
+							"\nexpiring", i,
+							"\ntimeout", b.timeout,
+							"\nsince", i.Add(b.timeout),
+							"\nis late", i.Add(b.timeout).Before(time.Now()),
+						)
+						delete(b.waitingEnc, i)
+					}
+				}
+			}
+		}
+	}(stream)
+
+	go func(stream proto.Transcriber_EncodeClient) {
+	in:
+		for {
+			// check whether it's shutdown time first
+			select {
+			case <-b.stop:
+				break in
+			default:
+			}
+
+			// Wait for and load in a newly received message
+			recvd, err := stream.Recv()
+			switch {
+			case err == io.EOF:
+				// The client has broken the connection, so we can quit
+				log.Println("stream closed")
+				break in
+			case err != nil:
+
+				log.Println(err)
+				break
+			}
+
+			// forward received message to processing loop
+			b.encRes <- recvd
+		}
+	}(stream)
+
+	return
+}
+```
+
+But before the generator, let's discuss what's happening in here.
+
+There is two goroutines started by the handler, each containing forever loops, each using the `stream` for reading and writing, respectively.
+
+The reason why two are needed is because the `stream.Recv` function blocks, so it cannot be part of a select block where events are driven by channel receives.
+
+The first goroutine has a stop handler, which breaks the forever loop using the `out` label, it has a channel receive for encode requests which sends the request on the stream, and a receiver handler, which we feed from the second goroutine that runs a polling loop instead of event loop because of the semantics of the receive function.
+
+The receive loop also checks for stop channel between receives, and will also break out if the stream is closed, which causes it to yield an `io.EOF` (end of file) signal, which occurs in case of client disconnect or triggering of the shutdown of the stream. The received messages are then forwarded to the encode results channel, which checks its queue, returns the message on the matching return channel, based on the message IdNonce and then deletes it from the map storing pending responses.
+
+Note that as you can see, the 'waitingEnc' variable is a map. If this map is accessed from two different goroutines, inevitably there will be two threads attempting to access it at the same time which will cause a panic which will be described as a "concurrent map read/write". For this reason, these accesses are kept within the first goroutine. The receiver adds them to the queue, and the sender deletes them once they are delivered.
+
+Lastly, using the timeout value selected, if a request gets hung up for more time than the timeout, the request map entry is deleted, assumed failed. If one does not set a timeout for request fulfillment, it can cause resource leaks that accumulate over time and will require the restarting of the server otherwise. To not time them out means that failures on one end propagate to the other end for no reason. The client can attempt to re-establish connection, outside of this code, with a retry with backoff to handle the case of a transient failure. On both sides, lack of progress should trigger a restart of services, at some level.
+
+When one has written a lot of peer to peer and blockchain type code, it is standard practice to expect connection failures and potential crashes on peers, and simply drop things and start again. Failures can be from many causes, network connections, denial of service attacks, bugs in network handlers, and bugs in the applications attached to the network handlers, and, of course, attacks on the applications themselves. Such misbehaviour is generally termed "crash failures" but can be caused by malice, and called "byzantine". Handling crash failure cases is essential in distributed systems, byzantine failures take a little more design and some game theory to work around.
+
+#### Copy Paste Generic Generator
+
+Inside the `pkg/grpc/client` folder create a new folder `gen` and inside that, create a new file "derive.go".
+
+This is the generator which will allow us to write one handler and duplicate it with changed names for all the relevant differing parts. This one is designed to create a single counterpart, however, one could conceivably have more than one substitution and write multiple files with different names based on this same design.
+
+```go
+package main
+
+import (
+    "io/ioutil"
+    "log"
+    "strings"
+)
+
+func main() {
+
+    // The following are the strings that differ between encoder.go and decoder.go
+    subs := [][]string{
+        {"Encode", "Decode"},
+        {"encChan", "decChan"},
+        {"encRes", "decRes"},
+        {"waitingEnc", "waitingDec"},
+        {"//go:generate go run ./gen/.", "// generated code DO NOT EDIT"},
+    }
+    bytes, err := ioutil.ReadFile("encoder.go")
+    if err != nil {
+        log.Println(err)
+        return
+    }
+    file := string(bytes)
+    for i := range subs {
+        file = strings.ReplaceAll(file, subs[i][0], subs[i][1])
+    }
+    err = ioutil.WriteFile("decoder.go", []byte(file), 0755)
+    if err != nil {
+        return
+    }
+}
+```
+
+It just occurs to me as I write this, that this will be the first example of reading and writing files in this tutorial. As such, we are using the simplest possible tools to do this. This little piece of code essentially does for you what you can do manually in about 2 minutes on such a task, but we now don't have to do this work.
+
+It also just occurs to me that it would have been a terrible omission to not introduce writing generators in this tutorial, since in Go it is an essential skill. This is the simplest possible code generator that you can write. This doesn't require any special handling or duplication in the form of writing a complex template and feeding it the respective sets of values to place in each field. The `encoder.go` file is live code that also compiles, and once you write this, you have the two api handlers for both sides, you can change one, run `go generate ./...` and the counterpart is updated to match.
+
+This isn't the first time we have shown the use of `go:generate` however. It is not the only way to handle these things, as many projects will use `Makefile`s in this capacity, but it's not necessary and is a step that isn't done often, so instead, you can put these lines in appropriate places and update the relevant source code automatically in one step over the whole repository.
+
+As such, you don't get to see the magic this does until we put this generator into the source `encode.go` file. Here it is, within its context:
+
+```go
+package client
+
+//go:generate go run ./gen/.
+
+import (
+    "github.com/quanterall/kitchensink/pkg/proto"
+    "io"
+    "time"
+)
+
+func (b *b32c) Encode(stream proto.Transcriber_EncodeClient) (err error) {
+```
+
+Once you have added this line to this file, you can then run `go generate` either in the folder where encode.go is found, with the subdirectory `gen` containing the generator code above, or invoke it and retrigger all generate lines in the project at the root with:
+
+```bash
+go generate ./...
+```
+
+In the second case, you will see it will re-run the protobuf compiler as well.
+
+> For the benefit of developers of this tutorial itself, we have also added a generator that updates the table of contents all markdown documents in the repository inside `doc.go` at the root of the repository. This file was placed there initially just so that there was a "package" at the root of the repository, but it becomes a handy place to put `go:generate` lines that do other things, like updating the table of contents. Note that unless you first run `scripts/installtoc.sh` which will require you to install an ubuntu debian package called "fswatch" and then a simple go app which generates table of contents for markdown files called `tocenize`. See the [scripts/](scripts/) folder for these items.
+
+----
+
+### [Step 8](steps/step8) Testing the gRPC server
 
