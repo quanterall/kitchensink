@@ -18,7 +18,9 @@ installed Go according to the instructions in [the readme](../README.md).
 installs the ubuntu/debian package `fswatch` which is used by Goland to watch
 for files to run 'run on save' file watchers, and the Go program `tocenize`,
 which creates a table of contents in markdown files based on header levels and
-texts
+texts. `fswatch` is needed by `tocenize` for one of its run modes, where it 
+sits and waits for files to be changed and then runs an update on the ToC of 
+the file.
 
 ### [toc.sh](./toc.sh)
 

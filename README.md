@@ -2708,7 +2708,9 @@ go generate ./...
 
 In the second case, you will see it will re-run the protobuf compiler as well.
 
-> For the benefit of developers of this tutorial itself, we have also added a generator that updates the table of contents all markdown documents in the repository inside `doc.go` at the root of the repository. This file was placed there initially just so that there was a "package" at the root of the repository, but it becomes a handy place to put `go:generate` lines that do other things, like updating the table of contents. Note that unless you first run `scripts/installtoc.sh` which will require you to install an ubuntu debian package called "fswatch" and then a simple go app which generates table of contents for markdown files called `tocenize`. See the [scripts/](scripts/) folder for these items.
+> For the benefit of developers of this tutorial itself, we have also added a generator that updates the table of contents all markdown documents in the repository inside `doc.go` at the root of the repository. This file was placed there initially just so that there was a "package" at the root of the repository, but it becomes a handy place to put `go:generate` lines that do other things, like updating the table of contents. 
+>
+> Note that unless you first run `scripts/installtoc.sh` which will require you to install an Ubuntu/Debian package called "fswatch" and then a simple go app which generates table of contents for markdown files called `tocenize`. See [scripts/README.md](scripts/README.md) for these items.
 
 [->contents](#kitchensink)
 
