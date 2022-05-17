@@ -185,7 +185,6 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	}
 	o += "\n"
 	log.Println(o)
-	// t.FailNow()
 
 	// replace the hashedSeeds with the long version
 	hashedSeeds = longMessages
@@ -200,10 +199,8 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 
 	// encoded := "\nencodedStr := []string{\n"
 
-	// var encodedLong []string
-	var encodedLong atomic.Value
-
-	encodedLong.Store([]string{})
+	var encodedLong = make([]string, len(hashedSeeds))
+	var elMx sync.Mutex
 
 	var wg sync.WaitGroup
 	var qCount atomic.Uint32
@@ -244,7 +241,11 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 			//     )
 			// }
 
-			encodedLong.Store(append(encodedLong.Load().([]string), encode))
+			elMx.Lock()
+			encodedLong[i] = encode
+			elMx.Unlock()
+
+			// encodedLong.Store(append(encodedLong.Load().([]string), encode))
 			// encoded += "\t\"" + encode + "\",\n"
 			wg.Done()
 			qCount.Dec()
@@ -252,15 +253,18 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+
+	// To correctly test concurrency at max speed, we need to copy the values
+	// for each concurrent test unit
+
 	// encoded += "}\n"
 	// t.Log(encoded)
 	// Next, decode the encodedStr above, which should be the output of the
 	// original generated seeds, with the index mod 5 truncations performed on
 	// each as was done to generate them.
-	_ = dec
-	for i := range encodedLong.Load().([]string) {
+	for i := range encodedLong {
 
-		go func(i int) {
+		go func(i int, el string) {
 
 			wg.Add(1)
 			qCount.Inc()
@@ -269,9 +273,10 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 			)
 			res := <-dec(
 				&proto.DecodeRequest{
-					EncodedString: encodedLong.Load().([]string)[i],
+					EncodedString: el,
 				},
 			)
+			qCount.Dec()
 			log.Println(
 				"decode message", i, "received back", qCount.Load(), "in queue",
 			)
@@ -291,8 +296,7 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 				)
 			}
 			wg.Done()
-			qCount.Dec()
-		}(i)
+		}(i, encodedLong[i])
 	}
 	wg.Wait()
 	stopCli()
