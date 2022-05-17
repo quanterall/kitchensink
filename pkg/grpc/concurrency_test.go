@@ -37,10 +37,15 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	rand.Seed(seed)
 	for i := 0; i < 64; i++ {
 
-		length := rand.Intn(randN)
-
+		// Every second slice will be a lot smaller so it will process and return while
+		// its predecessor is still in process
+		var length int
 		if i%2 != 0 {
-			length = 32
+
+			length = rand.Intn(hashLen-1) + 1
+		} else {
+
+			length = rand.Intn(randN)
 		}
 
 		// calculate the divisor and modulus of length compared to hash length
