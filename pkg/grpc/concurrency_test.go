@@ -258,43 +258,43 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	// original generated seeds, with the index mod 5 truncations performed on
 	// each as was done to generate them.
 	_ = dec
-	// for i := range encodedLong.Load().([]string) {
-	//
-	//     go func(i int) {
-	//
-	//         wg.Add(1)
-	//         qCount.Inc()
-	//         log.Println(
-	//             "decode message", i, "sending", qCount.Load(), "in queue",
-	//         )
-	//         res := <-dec(
-	//             &proto.DecodeRequest{
-	//                 EncodedString: encodedLong.Load().([]string)[i],
-	//             },
-	//         )
-	//         log.Println(
-	//             "decode message", i, "received back", qCount.Load(), "in queue",
-	//         )
-	//         // res, err := Codec.Decode(encodedStr[i])
-	//         // if err != nil {
-	//         //     t.Fatalf("error: '%v'", err)
-	//         // }
-	//         elen := len(expected[i])
-	//         etrimlen := 2 * (i % 5)
-	//         expectedHex := expected[i][:elen-etrimlen]
-	//         resHex := fmt.Sprintf("%x", res.GetData())
-	//         if resHex != expectedHex {
-	//             t.Fatalf(
-	//                 "got: '%s' expected: '%s'",
-	//                 resHex,
-	//                 expectedHex,
-	//             )
-	//         }
-	//         wg.Done()
-	//         qCount.Dec()
-	//     }(i)
-	// }
-	// wg.Wait()
+	for i := range encodedLong.Load().([]string) {
+
+		go func(i int) {
+
+			wg.Add(1)
+			qCount.Inc()
+			log.Println(
+				"decode message", i, "sending", qCount.Load(), "in queue",
+			)
+			res := <-dec(
+				&proto.DecodeRequest{
+					EncodedString: encodedLong.Load().([]string)[i],
+				},
+			)
+			log.Println(
+				"decode message", i, "received back", qCount.Load(), "in queue",
+			)
+			// res, err := Codec.Decode(encodedStr[i])
+			// if err != nil {
+			//     t.Fatalf("error: '%v'", err)
+			// }
+			elen := len(expected[i])
+			etrimlen := 2 * (i % 5)
+			expectedHex := expected[i][:elen-etrimlen]
+			resHex := fmt.Sprintf("%x", res.GetData())
+			if resHex != expectedHex {
+				t.Logf(
+					"got: '%s' expected: '%s'",
+					resHex,
+					expectedHex,
+				)
+			}
+			wg.Done()
+			qCount.Dec()
+		}(i)
+	}
+	wg.Wait()
 	stopCli()
 	stopSrvr()
 }
