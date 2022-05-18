@@ -3206,7 +3206,7 @@ Where previously we have been using `math/rand` to do all the heavy lifting to g
 
 So what we are going to do here is generate a cryptographically strong random data stream by starting with our seed value, hashing that value, and copying the hash to the stream, and then hashing that value to create a new value to copy into the stream. This is called a "hash chain" and is part of the timing system of the Solana blockchain.
 
-We will still use `math/rand`'s function `rand.Intn` to decide the lengths of our chunks of data, alternating between long and short segments that vary, with the even numbers giving lengths between 8 and 32 bytes long, and the odd numbers between 8 and 4096 bytes long. This pattern ensures that we get a breakdown of ordering in the stream as each long packet takes longer to process and thus the shorter item after it can return first.
+We will still use `math/rand`'s function `rand.Intn` to decide the lengths of our chunks of data, alternating between long and short segments that vary, with the even numbers giving lengths between 8 and 32 bytes long, and the odd numbers between 8 and 4096 bytes long. This pattern ensures that we get a breakdown of ordering in the stream as each long packet takes longer to process and thus the shorter item after it can return first.
 
 ```go
 	// For reasons of producing wide variance, we will generate the source
@@ -3304,7 +3304,7 @@ Now, we will create the first step, which is to concurrently send out all of our
 
 You will see the first thing we do is create a buffered channel of those "Sequenced" structs, of a buffer count the number of test items.
 
-This enables us to fill this channel with this many items, and by attaching their sequence number, as created in the `for` loop below it, we can then sort them back out later by unloading the channel.
+This enables us to fill this channel with this many items, and by attaching their sequence number, as created in the `for` loop below it, we can then sort them back out later by unloading the channel.
 
 ```go
 	// To create a collection that can be sorted easily after creation back into
@@ -3379,7 +3379,7 @@ At the end of this for loop, our `stringChan` will have all 64 of its buffers fi
 
 ### Unloading the channel buffer
 
-So, now we have the channel full of our sequence number bearing results, we can now unload the channel and place the items in their respective sequence position in a correctly ordered slice of result items. Note that we don't need to use the `Sequenced` type for the slice, as the `[]string` slice with `testItems` number of slots, each slot is the sequence number.
+So, now we have the channel full of our sequence number bearing results, we can now unload the channel and place the items in their respective sequence position in a correctly ordered slice of result items. Note that we don't need to use the `Sequenced` type for the slice, as the `[]string` slice with `testItems` number of slots, each slot is the sequence number.
 
 ```go
 	encoded := make([]string, testItems)
@@ -3504,7 +3504,7 @@ This is fairly straightforward, again we exploit the comparability of strings.
 
 [->contents](#kitchensink)
 
-### Finally, shutting the concurrency test client and server
+### Finally, shutting the concurrency test client and server down
 
 ```go
 	log.Println("shutting down client and server")
@@ -3512,6 +3512,10 @@ This is fairly straightforward, again we exploit the comparability of strings.
 	stopSrvr()
 }
 ```
+
+[->contents](#kitchensink)
+
+----
 
 ## [Step 9](steps/step9) - Creating a Server application and a CLI client
 
