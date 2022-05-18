@@ -3538,6 +3538,8 @@ In Go, a package that builds an application differs from a library in two import
 - Package name is `main`
 - Package contains a function called `main()`
 
+[->contents](#kitchensink)
+
 ### Creating the server application
 
 Thus, first executable we will make is the server, again following the precedence as is a strict convention in this tutorial: 
@@ -3570,6 +3572,8 @@ var log = logg.New(os.Stderr, "basedd", logg.Llongfile|logg.Lmicroseconds)
 ```
 
 Note the package name. A package with the name `main` is expected to contain a `main()` function, but there can be only one, though there can be many files in the directory of the package.
+
+[->contents](#kitchensink)
 
 ### Flags for CLI
 
@@ -3614,6 +3618,8 @@ func String(name string, value string, usage string) *string {
 	return CommandLine.String(name, value, usage)
 }
 ```
+
+[->contents](#kitchensink)
 
 ### The main function
 
@@ -3701,6 +3707,8 @@ We add the `Fprintln` statement in there for aesthetic reasons, because most ter
 
 Then we print a message to the log stating that the server is shutting down, and close the `killAll` channel we made earlier to trigger the clean shutdown of the server.
 
+[->contents](#kitchensink)
+
 ### Clean Shutdown Handler
 
 ```go
@@ -3752,3 +3760,51 @@ b3213:41:05.150091 /home/davidvennik/src/github.com/quanterall/kitchensink/pkg/g
 As you can see, the `interrupt` library also prints logs, since the first author of this tutorial wrote it, as when you are writing servers, you will sometimes encounter problems where goroutines are not shutting down correctly and for this you will use these interrupt handlers to handle this, which the library logs the locations that handlers are added, and also prints the locations where the code that runs when interrupt is triggered, when shutting down.
 
 > note that the logger output seems to have changed since go 1.18, the timestamp is not spaced from the subsystem name.
+
+[->contents](#kitchensink)
+
+### Creating a simple command line client
+
+Next, and the last and final piece of code to put into the kitchensink project is a simple program that accepts hexadecimal encoded binary data and converts it to our encoding, or, decodes data in the encoded form, back into hexadecimal.
+
+As usual, put the `log.go` in to a new folder `cmd/basedcli/` which will be identical to the one in `basedd`
+
+> Just a brief note about the log printing, it sends to `stderr` (`os.Stderr`) which only prints to the terminal and won't print to where you pipe or redirect (`>`, `>>` or `|`) the outputs. Also, normally you would disable logging on a client like this, but when in development, you want to have logging to begin with, and easy to turn on. I will not cover the subject of turning it off or redirecting it, you can find that out easy enough searching for information about redirecting `stderr` and `stdout` in terminals by searching on your favourite web search engine.
+
+So, first, here is the initial setup for parsing the inputs in `cmd/basedcli/basedcli.go`:
+
+```go
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+)
+
+const defaultAddr = "localhost:50051"
+
+var (
+	serverAddr = flag.String("a", defaultAddr,
+		"The server address for basedcli to connect to",
+	)
+	encode = flag.String("e", "", "hex string to convert to based32 encoding")
+	decode = flag.String("d", "",
+		"based32 encoded string to convert back to hex",
+	)
+)
+
+func main() {
+	_, _ = fmt.Fprintln(os.Stderr,
+		"basedcli - commandline client for based32 codec service",
+	)
+	flag.Parse()
+	if *serverAddr == defaultAddr {
+		_, _ = fmt.Fprintln(os.Stderr,
+			"run with argument -h to print command line options",
+		)
+	}
+
+}
+```
+
