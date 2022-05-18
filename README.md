@@ -1,74 +1,80 @@
 # kitchensink
 
-- [Teaching Golang via building a Human Readable Binary Transcription Encoding Framework](#teaching-golang-via-building-a-human-readable-binary-transcription-encoding-framework)
-	- [Prerequisites](#prerequisites)
+Welcome to the kitchen sink... where you will learn everything there is to know about writing fast, maintainable, and easy to understand concurrent Go programs.
+
+----
+
+- [Introduction](#introduction)
+	- [Teaching Golang via building a Human Readable Binary Transcription Encoding Framework](#teaching-golang-via-building-a-human-readable-binary-transcription-encoding-framework)
+- [Prerequisites](#prerequisites)
 	- [Install Go](#install-go)
 	- [Install Protobuf Compiler](#install-protobuf-compiler)
 	- [Install gRPC plugins for Go](#install-grpc-plugins-for-go)
 	- [Initialize your repository](#initialize-your-repository)
-- [Step By Step:](#step-by-step)
-	- [Step 1 Create the Protobuf specification](#step-1-create-the-protobuf-specification)
-		- [The header section](#the-header-section)
-		- [The service definition](#the-service-definition)
-		- [The encode messages](#the-encode-messages)
-		- [The decode messages](#the-decode-messages)
-		- [The errors](#the-errors)
-	- [Step 2 Complete the creation of the protobuf implementations](#step-2-complete-the-creation-of-the-protobuf-implementations)
-	- [Step 3 Create the base types and interfaces](#step-3-create-the-base-types-and-interfaces)
-		- [Create the interface](#create-the-interface)
-		- [The concrete type](#the-concrete-type)
-		- [Package header](#package-header)
-		- [Defining a generalised type framework](#defining-a-generalised-type-framework)
-		- [Interface Implementation Assertion](#interface-implementation-assertion)
-		- [Interface implementation using an embedded function](#interface-implementation-using-an-embedded-function)
-		- [Making the gRPC generated code more useful with some extensions](#making-the-grpc-generated-code-more-useful-with-some-extensions)
-		- [Documentation comments in Go](#documentation-comments-in-go)
-		- [go:generate line](#gogenerate-line)
-		- [Adding a Stringer `Error()` for the generated Error type](#adding-a-stringer-error-for-the-generated-error-type)
-		- [Convenience types for results](#convenience-types-for-results)
-		- [Create Response Helper Functions](#create-response-helper-functions)
-	- [Step 4 The Encoder](#step-4-the-encoder)
-		- [Always write code to be extensible](#always-write-code-to-be-extensible)
-		- [Helper functions](#helper-functions)
-		- [Log at the site](#log-at-the-site)
-		- [Create an Initialiser](#create-an-initialiser)
-		- [Writing the check function](#writing-the-check-function)
-		- [Creating the Encoder](#creating-the-encoder)
-		- [Calculating the check length](#calculating-the-check-length)
-		- [Writing the Encoder Implementation](#writing-the-encoder-implementation)
-		- [About `make()`](#about-make)
-		- [Creating the Check function](#creating-the-check-function)
-		- [Creating the Decoder function](#creating-the-decoder-function)
-	- [Step 5 Testing the algorithm](#step-5-testing-the-algorithm)
-		- [Random generation of test data](#random-generation-of-test-data)
-		- [Running the tests](#running-the-tests)
-		- [Enabling logging in the tests](#enabling-logging-in-the-tests)
-		- [The Go tool recursive descent notation](#the-go-tool-recursive-descent-notation)
-		- [Running the tests with logging and recursive descent](#running-the-tests-with-logging-and-recursive-descent)
-		- [Actually testing the Encoder and Decoder](#actually-testing-the-encoder-and-decoder)
-	- [Step 6 Creating a Server](#step-6-creating-a-server)
-		- [The Logger](#the-logger)
-		- [Implementing the worker pool](#implementing-the-worker-pool)
-		- [When to not export an externally used type](#when-to-not-export-an-externally-used-type)
-		- [About Channels](#about-channels)
-		- [About Waitgroups](#about-waitgroups)
-		- [Initialising the Worker Pool](#initialising-the-worker-pool)
-		- [Atomic Counters](#atomic-counters)
-		- [Running the Worker Pool](#running-the-worker-pool)
-		- [Logging the call counts](#logging-the-call-counts)
-		- [Starting the worker pool](#starting-the-worker-pool)
-		- [Creating the gRPC Service](#creating-the-grpc-service)
-	- [Step 7 Creating a Client](#step-7-creating-a-client)
-		- [Data Structures for the Client](#data-structures-for-the-client)
-		- [Client Constructor](#client-constructor)
-		- [The Encode and Decode Handlers](#the-encode-and-decode-handlers)
-		- [Copy Paste Generic Generator](#copy-paste-generic-generator)
-	- [Step 8 Testing the gRPC server](#step-8-testing-the-grpc-server)
-		- [Simple Functionality Test](#simple-functionality-test)
-		- [Replicating the Deterministic Random Generated Data Test](#replicating-the-deterministic-random-generated-data-test)
-		- [Side by Side Comparison](#side-by-side-comparison)
+- [Step 1 Create the Protobuf specification](#step-1-create-the-protobuf-specification)
+	- [The header section](#the-header-section)
+	- [The service definition](#the-service-definition)
+	- [The encode messages](#the-encode-messages)
+	- [The decode messages](#the-decode-messages)
+	- [The errors](#the-errors)
+- [Step 2 Complete the creation of the protobuf implementations](#step-2-complete-the-creation-of-the-protobuf-implementations)
+- [Step 3 Create the base types and interfaces](#step-3-create-the-base-types-and-interfaces)
+	- [Create the interface](#create-the-interface)
+	- [The concrete type](#the-concrete-type)
+	- [Package header](#package-header)
+	- [Defining a generalised type framework](#defining-a-generalised-type-framework)
+	- [Interface Implementation Assertion](#interface-implementation-assertion)
+	- [Interface implementation using an embedded function](#interface-implementation-using-an-embedded-function)
+	- [Making the gRPC generated code more useful with some extensions](#making-the-grpc-generated-code-more-useful-with-some-extensions)
+	- [Documentation comments in Go](#documentation-comments-in-go)
+	- [go:generate line](#gogenerate-line)
+	- [Adding a Stringer `Error()` for the generated Error type](#adding-a-stringer-error-for-the-generated-error-type)
+	- [Convenience types for results](#convenience-types-for-results)
+	- [Create Response Helper Functions](#create-response-helper-functions)
+- [Step 4 The Encoder](#step-4-the-encoder)
+	- [Always write code to be extensible](#always-write-code-to-be-extensible)
+	- [Helper functions](#helper-functions)
+	- [Log at the site](#log-at-the-site)
+	- [Create an Initialiser](#create-an-initialiser)
+	- [Writing the check function](#writing-the-check-function)
+	- [Creating the Encoder](#creating-the-encoder)
+	- [Calculating the check length](#calculating-the-check-length)
+	- [Writing the Encoder Implementation](#writing-the-encoder-implementation)
+	- [About `make()`](#about-make)
+	- [Creating the Check function](#creating-the-check-function)
+	- [Creating the Decoder function](#creating-the-decoder-function)
+- [Step 5 Testing the algorithm](#step-5-testing-the-algorithm)
+	- [Random generation of test data](#random-generation-of-test-data)
+	- [Running the tests](#running-the-tests)
+	- [Enabling logging in the tests](#enabling-logging-in-the-tests)
+	- [The Go tool recursive descent notation](#the-go-tool-recursive-descent-notation)
+	- [Running the tests with logging and recursive descent](#running-the-tests-with-logging-and-recursive-descent)
+	- [Actually testing the Encoder and Decoder](#actually-testing-the-encoder-and-decoder)
+- [Step 6 Creating a Server](#step-6-creating-a-server)
+	- [The Logger](#the-logger)
+	- [Implementing the worker pool](#implementing-the-worker-pool)
+	- [When to not export an externally used type](#when-to-not-export-an-externally-used-type)
+	- [About Channels](#about-channels)
+	- [About Waitgroups](#about-waitgroups)
+	- [Initialising the Worker Pool](#initialising-the-worker-pool)
+	- [Atomic Counters](#atomic-counters)
+	- [Running the Worker Pool](#running-the-worker-pool)
+	- [Logging the call counts](#logging-the-call-counts)
+	- [Starting the worker pool](#starting-the-worker-pool)
+	- [Creating the gRPC Service](#creating-the-grpc-service)
+- [Step 7 Creating a Client](#step-7-creating-a-client)
+	- [Data Structures for the Client](#data-structures-for-the-client)
+	- [Client Constructor](#client-constructor)
+	- [The Encode and Decode Handlers](#the-encode-and-decode-handlers)
+	- [Copy Paste Generic Generator](#copy-paste-generic-generator)
+- [Step 8 Testing the gRPC server](#step-8-testing-the-grpc-server)
+	- [Simple Functionality Test](#simple-functionality-test)
+	- [Side by Side Comparison](#side-by-side-comparison)
+	- [Testing Concurrency](#testing-concurrency)
 
-## Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
+## Introduction
+
+### Teaching Golang via building a Human Readable Binary Transcription Encoding Framework
 
 In this tutorial we will walk you through the creation from scratch of a human
 readable binary transcription encoder/decoder.
@@ -99,7 +105,7 @@ folder at the root of the repository.
 
 ----
 
-### Prerequisites
+## Prerequisites
 
 In general, you will be deploying your binaries to systems also running ubuntu
 20 or 21 or similar, on x86-64 platform, so the same instructions can be used in
@@ -186,19 +192,18 @@ repository, like this:
 `github.com/quanterall/kitchensink` found in the source code of this tutorial to
 match what you defined in your version of the above statement.**
 
-*If you don't upload this anywhere, you can just use what is defined here, and
-avoid this chore.*
+#### *If you don't upload this anywhere, you can just use what is defined here, and avoid this chore.*
 
 [->contents](#kitchensink)
 
-## Step By Step:
+----
+
+#### Step By Step:
 
 Click on the title of the step to see the state your repository should be in
 when you have completed the step.
 
-----
-
-### [Step 1](steps/step1) Create the Protobuf specification
+## [Step 1](steps/step1) Create the Protobuf specification
 
 First thing you do when working with gRPC is define the protocol messages.
 
@@ -214,7 +219,7 @@ file `based32.proto`
 
 [->contents](#kitchensink)
 
-#### The header section
+### The header section
 
 ```protobuf
 syntax = "proto3";
@@ -233,7 +238,7 @@ from, and should be the same as the repository root, plus `pkg/proto`.
 
 [->contents](#kitchensink)
 
-#### The service definition
+### The service definition
 
 ```protobuf
 service Transcriber {
@@ -258,7 +263,7 @@ concurrency is one of the goals of this tutorial.
 
 [->contents](#kitchensink)
 
-#### The encode messages
+### The encode messages
 
 ```protobuf
 message EncodeRequest {
@@ -292,7 +297,7 @@ exploited to break security, which is why Go lacks it).
 
 [->contents](#kitchensink)
 
-#### The decode messages
+### The decode messages
 
 ```protobuf
 message DecodeRequest{
@@ -312,7 +317,7 @@ string, decode is string to bytes, reversing the process.
 
 [->contents](#kitchensink)
 
-#### The errors
+### The errors
 
 ```protobuf
 enum Error {
@@ -340,7 +345,7 @@ why the tutorial uses such a simple application.
 
 ----
 
-### [Step 2](steps/step2) Complete the creation of the protobuf implementations
+## [Step 2](steps/step2) Complete the creation of the protobuf implementations
 
 To run the protobuf compiler and generate the code, from the root of the
 repository you run the following command:
@@ -370,9 +375,13 @@ described in the `service` section of the `based32.proto` file.
 
 ----
 
-### [Step 3](steps/step3) Create the base types and interfaces
+## [Step 3](steps/step3) Create the base types and interfaces
 
-#### Create the interface
+First thing to do in most cases is defining types, even just empty structs if you are not sure yet what you want to put in there. 
+
+In some cases, you want to also define interfaces, if you are going to create multiple similar libraries that will share a common set of methods to access them.
+
+### Create the interface
 
 In this project we are creating an interface in part to demonstrate how to use
 them. Being such a small library, it may not be necessary to do this, but it is
@@ -416,7 +425,7 @@ create an 'undefined behaviour' that could become a security vulnerability.
 
 [->contents](#kitchensink)
 
-#### The concrete type
+### The concrete type
 
 Create a new folder [pkg/codec](pkg/codec) and in it create a new file called `types.go`. This is
 where we will define the main types that will be used by packages and
@@ -424,7 +433,9 @@ applications that use our code.
 
 [->contents](#kitchensink)
 
-#### Package header
+### Package header
+
+It is generally preferred that folders and package names are the same:
 
 ```go
 package codec
@@ -436,7 +447,7 @@ import (
 
 [->contents](#kitchensink)
 
-#### Defining a generalised type framework
+### Defining a generalised type framework
 
 This is a configuration data structure that bundles configuration and
 implementation functions together. The function types defined are able to be
@@ -492,7 +503,7 @@ type Codec struct {
 
 [->contents](#kitchensink)
 
-#### Interface Implementation Assertion
+### Interface Implementation Assertion
 
 The following var line makes it so the compiler will throw an error if the
 interface is not implemented.
@@ -507,7 +518,7 @@ This is a good way to avoid problems when trying to use a concrete type, if the 
 
 [->contents](#kitchensink)
 
-#### Interface implementation using an embedded function
+### Interface implementation using an embedded function
 
 The type defined in the previous section provides for a changeable function for
 encode and decode. These are used here to automatically satisfy the interface
@@ -560,7 +571,7 @@ func (c *Codec) Decode(input string) ([]byte, error) { return c.Decoder(input) }
 
 [->contents](#kitchensink)
 
-#### Making the gRPC generated code more useful with some extensions
+### Making the gRPC generated code more useful with some extensions
 
 There is two minor gotchas that current versions of the go plugins for protoc to
 generate our RPC API that we are going to show a workaround for
@@ -589,7 +600,7 @@ generated code.
 
 [->contents](#kitchensink)
 
-#### Documentation comments in Go
+### Documentation comments in Go
 
 First, take note that comments above the package line should start "Package
 packagename..." and these lines will appear in
@@ -617,7 +628,7 @@ package proto
 
 [->contents](#kitchensink)
 
-#### go:generate line
+### go:generate line
 
 This is a convenient location to place the generator that processes the
 `*.proto` files. It can be put anywhere but this makes it more concise.
@@ -633,7 +644,7 @@ In Goland IDE this can be invoked directly from the editor.
 
 [->contents](#kitchensink)
 
-#### Adding a Stringer `Error()` for the generated Error type
+### Adding a Stringer `Error()` for the generated Error type
 
 The protobuf compiler creates a type Error to match the one defined in our proto
 file, but, it does not automatically generate the stringer for it. Normal types
@@ -669,7 +680,7 @@ func (x Error) Error() string {
 
 [->contents](#kitchensink)
 
-#### Convenience types for results
+### Convenience types for results
 
 The following types will be used elsewhere, as well as for the following create
 response functions. These are primarily to accommodate for the fact that
@@ -694,7 +705,7 @@ Yes, if you wanted to, you could use a structured type with error and return val
 
 [->contents](#kitchensink)
 
-#### Create Response Helper Functions
+### Create Response Helper Functions
 
 The following functions create convenient functions to return the result or the
 error correctly for creating the correct data structure for the gRPC response
@@ -778,13 +789,13 @@ Obviously, this puts a pretty onerous burden on you as a Go programmer when you 
 
 ----
 
-### [Step 4](steps/step4) The Encoder
+## [Step 4](steps/step4) The Encoder
 
 Next step is the actual library that the protobufs and interface and types were all created for.
 
 [->contents](#kitchensink)
 
-#### Always write code to be extensible
+### Always write code to be extensible
 
 While making new libraries you will change the types and protocols a lot as you work through the implementation, it is still the best pattern to start with defining at least protocols and making a minimal placeholder for the implementation.
 
@@ -796,7 +807,7 @@ The time cost of preparing a codebase to be extensible and modular is tiny in co
 
 [->contents](#kitchensink)
 
-#### Helper functions
+### Helper functions
 
 The only exception to this is when there is literally only one or at most two functions to deal with a specific type of data. These are often referred to as "helpers" or "convenience functions" and do not need to be extensible as they are very small and self contained.
 
@@ -806,7 +817,7 @@ As such, my advice is to keep helpers where they are used, and don't export them
 
 [->contents](#kitchensink)
 
-#### Log at the site
+### Log at the site
 
 No code ever starts out perfect. In most cases every last bit has to be debugged at some point. As such, one of the most important things you can do to save yourself time and irritation is to make it easier to trace bugs.
 
@@ -841,7 +852,7 @@ It may be that you are never writing algorithms that need any real debugging, ma
 
 [->contents](#kitchensink)
 
-#### Create an Initialiser
+### Create an Initialiser
 
 The purpose for the transparency of the `Codec` type in `types.go` was so that we could potentially create a custom codec in a separate package than where the type was defined. 
 
@@ -974,7 +985,7 @@ Note that the returns can be left 'naked' like this because the variables are de
 
 [->contents](#kitchensink)
 
-#### Writing the check function
+### Writing the check function
 
 The first thing we need for the codec is the check function. The check makes a checksum value. We additionally add the requirement that the check serves double duty as a pad to fill out the Base32 strings, which otherwise get ugly padding characters, usually `=` in the case of standard Go base32 library. Thus, the check function also includes a length parameter.
 
@@ -1019,7 +1030,7 @@ The length is variable as we are designing this algorithm to combine padding tog
 
 [->contents](#kitchensink)
 
-#### Creating the Encoder
+### Creating the Encoder
 
 In all cases, when creating a codec, the first step is making the encoder. It is impossible to decode something that doesn't yet exist, the encoder is *a priori*, that is, it comes first, both logically and temporally.
 
@@ -1029,7 +1040,7 @@ Further, the necessity of a variable length requires also that the length of the
 
 [->contents](#kitchensink)
 
-#### Calculating the check length
+### Calculating the check length
 
 So, first thing to add is a helper function, which we recommend you put *before* the `makeCodec` function:
 
@@ -1059,7 +1070,7 @@ The function takes the input of the length of our message in bytes, and returns 
 
 [->contents](#kitchensink)
 
-#### Writing the Encoder Implementation
+### Writing the Encoder Implementation
 
 The standard library contains a set of functions to encode and decode base 32 numbers using custom character sets. The 32 characters defined in the initialiser defined earlier, are chosen for their distinctiveness, it does not have I and 1, only small L (l), and only has zero (0) not capital O, as, unfortunately, in many fonts these can be hard to differentiate. Likewise for 2 and Z, and 5 and S.
 
@@ -1115,7 +1126,7 @@ The comments explain every step in the process.
 
 [->contents](#kitchensink)
 
-#### About `make()`
+### About `make()`
 
 First, as this is the first point at which the builting function `make` appears, this is a function that initialises and populates the three main types of "reference types" (values that are actually pointers), slice (`[]T`), map (`map[K]V`) and channel (`chan T`). 
 
@@ -1161,7 +1172,7 @@ It is acceptable to delegate this allocation logic for some purposes to the runt
 
 [->contents](#kitchensink)
 
-#### Creating the Check function
+### Creating the Check function
 
 Continuing in the promised logical, first principles ordering of things, the next thing we need is the Check function. 
 
@@ -1256,7 +1267,7 @@ Casting bytes to string creates an immutable copy so it adds a copy operation. I
 
 [->contents](#kitchensink)
 
-#### Creating the Decoder function
+### Creating the Decoder function
 
 The decoder cuts off the HRP, prepends the always zero first base32 character, decodes using the Base32 encoder (it is created prior to the encode function previously, and is actually a codec, though I used the name `enc`, it also has a decode function).
 
@@ -1349,7 +1360,7 @@ Note that in a couple of places there are log prints. This is because when devel
 
 ----
 
-### [Step 5](steps/step5) Testing the algorithm
+## [Step 5](steps/step5) Testing the algorithm
 
 I am not a fan of doing a lot of stuff before I put the thing into action, there is so many mistakes that can happen without the feedback. Go in almost every respect is a language designed for short feedback loops, and up until the previous step we were only writing mainly declarations so now that we have possibly working code, it needs to be exercised as soon as possible.
 
@@ -1361,7 +1372,7 @@ For this, rather than creating truly random inputs, we exploit the determinism o
 
 [->contents](#kitchensink)
 
-#### Random generation of test data
+### Random generation of test data
 
 What we now do is use the random number generator to create a small set of random values that serve as the base to generate 256 bit values to encode, which would be typical data for this type of encoder, hash values for cryptocurrency addresses or transaction hash identifiers.
 
@@ -1482,7 +1493,7 @@ First thing to explain is how tests are constructed.
 
 [->contents](#kitchensink)
 
-#### Running the tests
+### Running the tests
 
 To run the tests, you simply need to designate the package folder where the tests you want to run are living:
 
@@ -1493,7 +1504,7 @@ Note the `./` in front of the folder. This means "in the current directory" in U
 
 [->contents](#kitchensink)
 
-#### Enabling logging in the tests
+### Enabling logging in the tests
 
 In order to update automatically generated, deterministic data like we are using in this test, we need the test to print out the data that it should be generating, according to what we believe is correct code. 
 
@@ -1503,7 +1514,7 @@ However, as you will know if you read closely in the text, there is a section of
 
 [->contents](#kitchensink)
 
-#### The Go tool recursive descent notation
+### The Go tool recursive descent notation
 
 Before we go any further, we will introduce a special path notation that the `go` tool understands that automatically recursively descends a filesystem hierarchy from a given starting point.
 
@@ -1519,7 +1530,7 @@ Go programmers pretty much like using it whenever they make tools to do this sor
 
 [->contents](#kitchensink)
 
-#### Running the tests with logging and recursive descent
+### Running the tests with logging and recursive descent
 
 Since when you are doing tests, most of the time the codebase is not big enough to be specific, this can be memorised as the one main way to run tests on a Go repository.
 
@@ -1582,7 +1593,7 @@ We don't need to test the values are identical, because they have to be, by thei
 
 [->contents](#kitchensink)
 
-#### Actually testing the Encoder and Decoder
+### Actually testing the Encoder and Decoder
 
 To test everything that the encoder does correctly, we need to feed it variable lengths of data. 
 
@@ -1825,7 +1836,7 @@ Writing good tests is a bit of a black art, and the task gets more and more comp
 
 ----
 
-### [Step 6](steps/step6) Creating a Server
+## [Step 6](steps/step6) Creating a Server
 
 Just to clarify an important distinction, and another aspect of writing modular code, we are not writing an *executable* that you can spawn from the commandline or within scripts or Dockerfiles. We are writing an *in process* service that can be started by any Go application, the actual application that does this will be created later.
 
@@ -1837,7 +1848,7 @@ We create the server first for the same reason as we create the encoder first. T
 
 [->contents](#kitchensink)
 
-#### The Logger
+### The Logger
 
 I will be repetitive about this, because I want to reinforce the point that debugging by log printing is *not* "unprofessional" or any insults that certain kinds of "programmers" would have you believe. Ignore these fools, they have amnesia about their own learning process and want to be elite forever and not have competition.
 
@@ -1878,7 +1889,7 @@ This little file makes sure that you can put log prints in anywhere in your code
 
 [->contents](#kitchensink)
 
-#### Implementing the worker pool
+### Implementing the worker pool
 
 Continuing, as always, with steps that build upon the previous steps and not leaving you with code that would not compile due to undefined symbols, the very first thing you need to put in the package is the `Transcriber`, which is the name we will give to our worker pool.
 
@@ -1913,13 +1924,13 @@ There is a few explanations that need to be made to start with.
 
 [->contents](#kitchensink)
 
-#### When to not export an externally used type
+### When to not export an externally used type
 
 Here is a case where we are not exporting a type that has methods that will be used by other packages that will import this package. The reason is that channels and slices both need initialisation before they can be used, as performing operations on these variables that have not been initialised will cause a `nil` panic. Thus, we instead will export an initialiser function, which will take care of this initialisation for us.
 
 [->contents](#kitchensink)
 
-#### About Channels
+### About Channels
 
 First of all, channels themselves, which have the type `chan` as a prefix. 
 
@@ -1941,13 +1952,13 @@ The last point, is that each of the 4 channels we have for our two API methods c
 
 [->contents](#kitchensink)
 
-#### About Waitgroups
+### About Waitgroups
 
 The last element of the struct is a `sync.Waitgroup`. This is an atomic counter which can be used to keep track of the number of threads that are running, and allows you to write code that holds things open until all of the wait group are `Done` when shutting down.
 
 [->contents](#kitchensink)
 
-#### Initialising the Worker Pool
+### Initialising the Worker Pool
 
 Now that we have given a brief (as possible) explanation of the elements of the worker pool, here is the initialiser:
 
@@ -1999,7 +2010,7 @@ Note that it is possible to use literals to initialise maps and slices, but it i
 
 [->contents](#kitchensink)
 
-#### Atomic Counters
+### Atomic Counters
 
 You wil also notice `encCallCount` and `decCallCount` are `atomic` types.
 
@@ -2015,7 +2026,7 @@ Note that strings are a special case of a data type that is actually a pointer i
 
 [->contents](#kitchensink)
 
-#### Running the Worker Pool
+### Running the Worker Pool
 
 The next thing to put into `pkg/grpc/workerpool.go` is the start function, but this depends on two further functions we are adding for reasons of neatness and good practice.
 
@@ -2075,7 +2086,7 @@ It's important to understand that part of the reason why Go has coroutines (goro
 
 [->contents](#kitchensink)
 
-#### Logging the call counts
+### Logging the call counts
 
 There isn't any point in putting the counter in there if it wasn't going to come back out somewhere, and the logical place for this is in a log print that summarises the activity of the server's run:
 
@@ -2092,7 +2103,7 @@ func (t *transcriber) logCallCounts() {
 ```
 [->contents](#kitchensink)
 
-#### Starting the worker pool
+### Starting the worker pool
 
 The start function spawns the workers in a loop, calling the `handle` function for each worker, spawning an individual thread for each, and returns a function that runs when they stop. In this case it just waits until all the processes have completed their cleanup before calling the `logCallCounts` function.
 
@@ -2122,7 +2133,7 @@ func (t *transcriber) Start() (cleanup func()) {
 
 [->contents](#kitchensink)
 
-#### Creating the gRPC Service
+### Creating the gRPC Service
 
 Now that we have the worker pool created, we need to create the gRPC service that will use it.
 
@@ -2406,7 +2417,7 @@ It is a common problem for beginners working with concurrency in Go to have appl
 
 ----
 
-### [Step 7](steps/step7) Creating a Client
+## [Step 7](steps/step7) Creating a Client
 
 Again, we want to put our nice logger in [pkg/grpc/client/log.go](pkg/grpc/client/log.go)
 
@@ -2423,7 +2434,7 @@ var log = logg.New(os.Stderr, "based32", logg.Llongfile|logg.Lmicroseconds)
 
 [->contents](#kitchensink)
 
-#### Data Structures for the Client
+### Data Structures for the Client
 
 In [pkg/grpc/client/types.go](pkg/grpc/client/types.go) we will define the specific types required for the client.
 
@@ -2485,7 +2496,7 @@ There is no strict rule or idiom about including types and constructors or metho
 
 [->contents](#kitchensink)
 
-#### Client Constructor
+### Client Constructor
 
 In [pkg/grpc/client/client.go](pkg/grpc/client/client.go) we will put a constructor:
 
@@ -2514,7 +2525,7 @@ As you can see, the majority of this function is initialising channels and maps.
 
 [->contents](#kitchensink)
 
-#### The Encode and Decode Handlers
+### The Encode and Decode Handlers
 
 We are not going to put the function to start up the client yet, because we first need the handlers for the encode and decode API calls.
 
@@ -2638,7 +2649,7 @@ When one has written a lot of peer to peer and blockchain type code, it is stand
 
 [->contents](#kitchensink)
 
-#### Copy Paste Generic Generator
+### Copy Paste Generic Generator
 
 Inside the `pkg/grpc/client` folder create a new folder `gen` and inside that, create a new file "derive.go".
 
@@ -2719,11 +2730,11 @@ In the second case, you will see it will re-run the protobuf compiler as well.
 
 ----
 
-### [Step 8](steps/step8) Testing the gRPC server
+## [Step 8](steps/step8) Testing the gRPC server
 
 Once again, now that we supposedly have code that does stuff, we need to run it and make sure that it does the stuff correctly.
 
-#### Simple Functionality Test
+### Simple Functionality Test
 
 First is to just make sure the thing works at all. This is the simplest kind of test for a codec, it just encodes, then decodes the encoded data, and compares it back to the original.
 
@@ -3034,9 +3045,9 @@ func TestGRPCCodec(t *testing.T) {
 
 If you look closely at this and compare it to the test in [pkg/based32/based32_test.go](pkg/based32/based32_test.go) you will notice that it is literally identical except for how it calls the encode and decode functions.
 
-#### Side by Side Comparison
+### Side by Side Comparison
 
-Calling it via the library:
+#### Calling it via the library:
 
 ```go
 	// Convert hashes to our base32 encoding format
@@ -3064,7 +3075,7 @@ Calling it via the library:
 	t.Log(encoded)
 ```
 
-Calling via the gRPC microservice:
+#### Calling via the gRPC microservice:
 
 ```go
 	// Convert hashes to our base32 encoding format
@@ -3098,13 +3109,13 @@ Calling via the gRPC microservice:
 
 Note that we probably could have made it another level simplified and removed the need to pass the pointer to a `proto.EncodeRequest`  and had the encoder accept `[]byte` directly and decoder accept `string` directly. 
 
-We want to point that out rather than change it to be that way as an exercise for the reader.
+#### We want to point that out rather than change it to be that way as an exercise for the reader.
 
 It is possible to write wrapper functions for this that make the calling code appear to be calling locally, while the execution in fact uses a remote procedure and calls a microservice instead. This can even be made completely identical with carefully crafted wrappers, so that one get remote, or local, just by changing which import, and nothing else. Potentially one could even use a variadic string parameter to specify a server, and run the library call if empty, or connect to the server if filled, and further disappear the differences between using the RPC and local versions. 
 
 I hope that especially at this point you are starting to understand why Go is the best language in the world of software development right now, and all of the rest of the languages are wrong.
 
-#### Testing Concurrency
+### Testing Concurrency
 
 This is all very well, so far we have not tested what we spent an awful lot of time doing, which was writing our service so it can handle concurrent requests correctly, and return them when ready whether or not out of order.
 
