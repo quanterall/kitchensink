@@ -80,6 +80,10 @@ Welcome to the kitchen sink... where you will learn everything there is to know 
 	- [Checking the encode-decode cycle did not disorder or corrupt our data](#checking-the-encode-decode-cycle-did-not-disorder-or-corrupt-our-data)
 	- [Finally, shutting the concurrency test client and server down](#finally-shutting-the-concurrency-test-client-and-server-down)
 - [Step 9 - Creating a Server application and a CLI client](#step-9---creating-a-server-application-and-a-cli-client)
+	- [`cmd` folders for executables](#cmd-folders-for-executables)
+	- [Log, Log, Glorious Log](#log-log-glorious-log)
+	- [Flags for CLI](#flags-for-cli)
+	- [The main function](#the-main-function)
 
 ## Introduction
 
@@ -3520,3 +3524,231 @@ This is fairly straightforward, again we exploit the comparability of strings.
 ## [Step 9](steps/step9) - Creating a Server application and a CLI client
 
 Last thing to illustrate, far less complicated than the concurrency, is turning the service into actual applications.
+
+We are not going to illustrate a remote controller here. This is done by creating control functions and requires authentication to limit control to the operator's designated trusted administrators.
+
+[->contents](#kitchensink)
+
+### `cmd` folders for executables
+
+First, we need to make a folder for our executables. The convention for Go repositories is to create a folder with the name `cmd` at the root, and put applications sub-folders named for the executable filename.
+
+In Go, a package that builds an application differs from a library in two important ways:
+
+- Package name is `main`
+- Package contains a function called `main()`
+
+### Creating the server application
+
+Thus, first executable we will make is the server, again following the precedence as is a strict convention in this tutorial: 
+
+    basedd
+
+It is not mandatory for you to use this convention, but in general, there is three suffixes you put on executable names:
+
+- -d - short for "daemon", which is the Unix convention for the name of a service, that is to say, a program that runs and performs functions when clients send them messages.
+- -cli - short for "client", which is an application that makes a request via command line interface (CLI) parameters.
+- -ctl - short for "control", which is an application that controls the operation of a "daemon" or service application.
+
+Our library is called `based32`, which we add the `d` to the end as a kind of joke as well as to distinguish it from the name `base32` which is the simple unchecked encoding for numbers with 32 symbols instead of 10 as with "decimal" or 16 as with "hexadecimal". So, we are calling our service `basedd`, which you are free to pronounced as "baseded" to keep with the tongue in cheek theme.
+
+[->contents](#kitchensink)
+
+### Log, Log, Glorious Log
+
+Of course, you know what goes first. Put this in `cmd/basedd/log.go`:
+
+```go
+package main
+
+import (
+	logg "log"
+	"os"
+)
+
+var log = logg.New(os.Stderr, "basedd", logg.Llongfile|logg.Lmicroseconds)
+```
+
+Note the package name. A package with the name `main` is expected to contain a `main()` function, but there can be only one, though there can be many files in the directory of the package.
+
+### Flags for CLI
+
+Our service only needs one optional parameter, which is the address it will listen to for requests. Strictly speaking, because it is a streaming service, clients establish a stream, and then make requests, but the client we will write only makes one request. In theory, one would write the service to run at one network location, or as an independent executable, and then clients would attach and stream their requests.
+
+Put the following code into `cmd/basedd/basedd.go` 
+
+```go
+package main
+
+import (
+	"flag"
+	"fmt"
+	"github.com/cybriq/interrupt"
+	"github.com/quanterall/kitchensink/pkg/grpc/server"
+	"net"
+	"os"
+)
+
+const defaultAddr = "localhost:50051"
+
+var serverAddr = flag.String("a", defaultAddr,
+	"The address to listen for connections in the format of host:port "+
+		"- omit host to bind to all network interfaces",
+)
+
+var killAll = make(chan struct{})
+```
+
+The `killAll` channel here is the standard breaker channel for shutdown, which we will use to hold the application open and when this channel closes, we will shut down the server.
+
+The `flag` library is a standard library which parses command line options by the usual standard notations. Here we have one parameter, which is a string, which we are using for the address for the server to listen to.
+
+The first parameter is the string that will follow a `-` or optionally `--` as in `-a` or `--a` at your option or by your habit, to signify that the next string, which can also be not separated, will be the network address.
+
+If no parameter with the `a` is given, the variable `serverAddr` will be a pointer to `defaultAddr`. Flag values are pointers:
+
+```go
+// String defines a string flag with specified name, default value, and usage string.
+// The return value is the address of a string variable that stores the value of the flag.
+func String(name string, value string, usage string) *string {
+	return CommandLine.String(name, value, usage)
+}
+```
+
+### The main function
+
+The first thing we will put in the `main()` is some printing and processing the command line arguments:
+
+```go
+func main() {
+
+	log.Println(
+		"basedd - microservice for based32 human transcription encoding",
+	)
+	flag.Parse()
+
+	// If the the address is the same as default probably the user didn't set
+	// one, so let them know they can as a courtesy.
+	if *serverAddr == defaultAddr {
+		log.Println(
+			"run with argument -h to print command line options",
+		)
+	}
+    
+}
+```
+
+The function `flag.Parse()` reads the command line arguments and fills the fields as we specified previously the `serverAddr` variable.
+
+To be helpful, if the user did not input a value for the server address, we print a message to notify them of this, and how to print the help information.
+
+Next, we need to get an `net.TCPAddr` to pass to the server constructor function. Put this before the last parenthesis `}`. All further parts of the `main` function will be placed underneath.
+
+```go
+	addr, err := net.ResolveTCPAddr("tcp", *serverAddr)
+	if err != nil {
+
+		// If net.ParseIP returns nil it means the address is invalid.
+		log.Printf("Failed to parse network address '%s'", *serverAddr)
+		os.Exit(1)
+	}
+
+```
+
+It is unfortunately not a standard library feature to provide an easy way to catch a `ctrl-c` signal from the terminal, so as you saw in the imports at the beginning of this section we are importing a library that the first author of this tutorial adapted from a library included in the
+[btcd](https://github.com/btcsuite/btcd) full bitcoin node server, with the added feature of in process restart (for reconfiguration).
+
+This library allows us to create a chain of functions that will run in the event the user sends an `interrupt` signal, either via `ctrl-c` or some variant of `kill` or perhaps using `top` or the Gnome system monitor.
+
+```go
+	// interrupt is a library that allows the proper handling of OS interrupt
+	// signals to allow a clean shutdown and ensure such things as databases are
+	// properly closed and all pending writes are completed.
+	interrupt.AddHandler(func() {
+
+		// Most of the time the shell spits out a `^C` when the user hits
+		// ctrl-c, the standard interrupt (cancel) key for a terminal. This adds
+		// a newline so our logs don't get indented with an ugly prefix making
+		// them less readable.
+		_, _ = fmt.Fprintln(os.Stderr)
+
+		// In this case, we are just ending the process, after the select block
+		// below falls through when the channel is closed, the execution of the
+		// application terminates.
+		//
+		// Note that Go applications keep running even if the main() has
+		// terminated if goroutines are not terminated. So, quit channels are
+		// fundamental to controlling most Go applications, and the bigger the
+		// application the more threads there will be and the more crucial it is
+		// that they are correctly terminated.
+		//
+		// Note that in many libraries the context library is used to provide
+		// part of this functionality, but for general control, one still needs
+		// to use breaker channels like this.
+		//
+		// Ultimately they are always implemented with exactly this pattern. The
+		// qu library makes it easier to debug the channels when run control
+		// bugs appear, you can print the information about the state of the
+		// channels that are open and where in the code they are waiting.
+
+		log.Println("Shutting down basedd microservice")
+		close(killAll)
+	},
+	)
+```
+
+We add the `Fprintln` statement in there for aesthetic reasons, because most terminals disrupt the vertical alignment of log print lines with a `^C` so first thing to do is make a new line.
+
+Then we print a message to the log stating that the server is shutting down, and close the `killAll` channel we made earlier to trigger the clean shutdown of the server.
+
+### Clean Shutdown Handler
+
+```go
+	// In all cases, we create shutdown handlers and start receiving threads
+	// before we start up the sending threads.
+	stop := svc.Start()
+
+	select {
+	case <-killAll:
+
+		// This triggers termination of the service. We separate the stop
+		// controls of this application versus the services embedded inside the
+		// server so that we can potentially instead *restart* the service
+		// rather than only terminate it, in the case of a reconfiguration
+		// signal. This signal is not handled, because this is too simple a
+		// service and there is no configuration to really change. But this is
+		// why you don't make one quit channel for an entire app, but instead
+		// set them up in a cascade like this.
+		stop()
+		break
+	}
+```
+
+So, first, as we saw in the gRPC tests, we start up the service, which will start listening for requests on the configured address, and a `select` block which waits for the `interrupt` signal and then runs the shutdown function we got back from the `Start` function of the service.
+
+You can run this thing now, by the following command (with current working directory at the root of the repository):
+
+    go run ./cmd/basedd/.
+
+and it will sit there and do nothing until you type `ctrl-c` to signal it to shut down. That will look like this:
+
+```
+davidvennik@pop-os:~/src/github.com/quanterall/kitchensink$ go run ./cmd/basedd/.
+basedd13:41:01.944305 /home/davidvennik/src/github.com/quanterall/kitchensink/cmd/basedd/basedd.go:23: basedd - microservice for based32 human transcription encoding
+basedd13:41:01.944331 /home/davidvennik/src/github.com/quanterall/kitchensink/cmd/basedd/basedd.go:31: run with argument -h to print command line options
+b3213:41:01.944607 /home/davidvennik/src/github.com/quanterall/kitchensink/pkg/grpc/server/service.go:28: creating transcriber service
+interrupt /home/davidvennik/pkg/mod/github.com/cybriq/interrupt@v0.1.3/interrupt.go:138: handler added by: /home/davidvennik/src/github.com/quanterall/kitchensink/cmd/basedd/basedd.go:49
+b3213:41:01.944824 /home/davidvennik/src/github.com/quanterall/kitchensink/pkg/grpc/server/service.go:162: starting transcriber service
+b3213:41:01.944949 /home/davidvennik/src/github.com/quanterall/kitchensink/pkg/grpc/server/service.go:174: server listening at 127.0.0.1:50051
+^Cinterrupt /home/davidvennik/pkg/mod/github.com/cybriq/interrupt@v0.1.3/interrupt.go:105: received interrupt signal interrupt
+interrupt /home/davidvennik/pkg/mod/github.com/cybriq/interrupt@v0.1.3/interrupt.go:46: running interrupt callbacks 1                                                  [/home/davidvennik/src/github.com/quanterall/kitchensink/cmd/basedd/basedd.go:49]
+interrupt /home/davidvennik/pkg/mod/github.com/cybriq/interrupt@v0.1.3/interrupt.go:55: running callback 0 /home/davidvennik/src/github.com/quanterall/kitchensink/cmd/basedd/basedd.go:49
+
+basedd13:41:05.150070 /home/davidvennik/src/github.com/quanterall/kitchensink/cmd/basedd/basedd.go:76: Shutting down basedd microservice
+interrupt /home/davidvennik/pkg/mod/github.com/cybriq/interrupt@v0.1.3/interrupt.go:58: interrupt handlers finished
+b3213:41:05.150091 /home/davidvennik/src/github.com/quanterall/kitchensink/pkg/grpc/server/service.go:225: stop called on service
+```
+
+As you can see, the `interrupt` library also prints logs, since the first author of this tutorial wrote it, as when you are writing servers, you will sometimes encounter problems where goroutines are not shutting down correctly and for this you will use these interrupt handlers to handle this, which the library logs the locations that handlers are added, and also prints the locations where the code that runs when interrupt is triggered, when shutting down.
+
+> note that the logger output seems to have changed since go 1.18, the timestamp is not spaced from the subsystem name.
