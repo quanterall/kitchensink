@@ -2,10 +2,15 @@ package grpc
 
 import (
 	"encoding/binary"
-	"fmt"
+	"github.com/quanterall/kitchensink/pkg/grpc/client"
+	"github.com/quanterall/kitchensink/pkg/grpc/server"
+	"go.uber.org/atomic"
 	"lukechampine.com/blake3"
 	"math/rand"
+	"net"
+	"sync"
 	"testing"
+	"time"
 )
 
 const (
@@ -13,7 +18,13 @@ const (
 	minLength = 8
 	randN     = maxLength - minLength
 	hashLen   = 32
+	testItems = 64
 )
+
+type SequencedString struct {
+	seq int
+	str string
+}
 
 // TestGRPCCodecConcurrency deliberately intersperses extremely long messages
 // and spawns tests concurrently in order to ensure the client correctly returns
@@ -25,17 +36,17 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	seedBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(seedBytes, seed)
 
-	lastHash := make([]byte, 32)
+	lastHash := make([]byte, hashLen)
 
 	out := blake3.Sum256(seedBytes)
 	copy(lastHash, out[:])
 
-	generated := make([][]byte, 64)
+	generated := make([][]byte, testItems)
 
 	// Next, we will use the same fixed seed to define the variable lengths between 8
 	// and 4096 bytes for 64 items
 	rand.Seed(seed)
-	for i := 0; i < 64; i++ {
+	for i := 0; i < testItems; i++ {
 
 		// Every second slice will be a lot smaller so it will process and return while
 		// its predecessor is still in process
@@ -75,9 +86,41 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 		generated[i] = thisHash[:length]
 	}
 
-	var o string
-	for i := range generated {
-		o += fmt.Sprint(len(generated[i]), ", ")
+	// To create a collection that can be sorted easily after creation back into an
+	// ordered slice, we create a buffered channel with enough buffers to hold all of
+	// the items we will feed into it
+	stringChan := make(chan SequencedString, testItems)
+
+	// Set up a server
+	addr, err := net.ResolveTCPAddr("tcp", defaultAddr)
+	if err != nil {
+		t.Fatal(err)
 	}
-	log.Println(o)
+	srvr := server.New(addr, 8)
+	stopSrvr := srvr.Start()
+
+	// Create a client
+	cli, err := client.New(defaultAddr, time.Second*5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc, dec, stopCli := cli.Start()
+
+	// We will use this to make sure every request completes before we shut down the
+	// client and server
+	var wg sync.WaitGroup
+
+	// We will keep track of ins and outs for log prints
+	var qCount atomic.Uint32
+
+	for i := range generated {
+
+	}
+
+	encoded := make([]string, testItems)
+
+	wg.Wait()
+	stopCli()
+	stopSrvr()
+
 }
