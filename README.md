@@ -71,6 +71,15 @@ Welcome to the kitchen sink... where you will learn everything there is to know 
 	- [Simple Functionality Test](#simple-functionality-test)
 	- [Side by Side Comparison](#side-by-side-comparison)
 	- [Testing Concurrency](#testing-concurrency)
+	- [Keeping things in sequence](#keeping-things-in-sequence)
+	- [Using Hash Chains to generate bulk random data fast](#using-hash-chains-to-generate-bulk-random-data-fast)
+	- [Starting up the gRPC client and server](#starting-up-the-grpc-client-and-server)
+	- [Encoding the random length chunks](#encoding-the-random-length-chunks)
+	- [Unloading the channel buffer](#unloading-the-channel-buffer)
+	- [Decoding and collating the encoded data](#decoding-and-collating-the-encoded-data)
+	- [Checking the encode-decode cycle did not disorder or corrupt our data](#checking-the-encode-decode-cycle-did-not-disorder-or-corrupt-our-data)
+	- [Finally, shutting the concurrency test client and server](#finally-shutting-the-concurrency-test-client-and-server)
+- [Step 9 - Creating a Server application and a CLI client](#step-9---creating-a-server-application-and-a-cli-client)
 
 ## Introduction
 
@@ -2734,6 +2743,8 @@ In the second case, you will see it will re-run the protobuf compiler as well.
 
 Once again, now that we supposedly have code that does stuff, we need to run it and make sure that it does the stuff correctly.
 
+[->contents](#kitchensink)
+
 ### Simple Functionality Test
 
 First is to just make sure the thing works at all. This is the simplest kind of test for a codec, it just encodes, then decodes the encoded data, and compares it back to the original.
@@ -2822,6 +2833,8 @@ You will recall that we wrote the `enc` and `dec` functions to return channels -
 It is not necessary to write the code this way, but it shows the increased flexibility of the placement of coroutines and atomic FIFO queues as first class citizens in Go versus the use of `async` functions in other languages.
 
 Instead of directly waiting on this result, we could instead save the channel in a variable, and spawn a goroutine which waits on the result while the program moves on to some other task. By returning a channel in this way, we give the user of the function two different ways to use it, synchronous, or asynchronous, the only difference in being adding the receive `<-` operator before the assign `:=` operator.
+
+[->contents](#kitchensink)
 
 #### Replicating the Deterministic Random Generated Data Test
 
@@ -3045,7 +3058,11 @@ func TestGRPCCodec(t *testing.T) {
 
 If you look closely at this and compare it to the test in [pkg/based32/based32_test.go](pkg/based32/based32_test.go) you will notice that it is literally identical except for how it calls the encode and decode functions.
 
+[->contents](#kitchensink)
+
 ### Side by Side Comparison
+
+[->contents](#kitchensink)
 
 #### Calling it via the library:
 
@@ -3074,6 +3091,8 @@ If you look closely at this and compare it to the test in [pkg/based32/based32_t
 	encoded += "}\n"
 	t.Log(encoded)
 ```
+
+[->contents](#kitchensink)
 
 #### Calling via the gRPC microservice:
 
@@ -3115,9 +3134,13 @@ It is possible to write wrapper functions for this that make the calling code ap
 
 I hope that especially at this point you are starting to understand why Go is the best language in the world of software development right now, and all of the rest of the languages are wrong.
 
+[->contents](#kitchensink)
+
 ### Testing Concurrency
 
 This is all very well, so far we have not tested what we spent an awful lot of time doing, which was writing our service so it can handle concurrent requests correctly, and return them when ready whether or not out of order.
+
+[->contents](#kitchensink)
 
 ### Keeping things in sequence
 
@@ -3174,6 +3197,8 @@ We will test 64 `testItems`, and as you will see when you run the test, the proc
 Only languages that implement Concurrent Sequential Processes (CSP) multi threaded modelling can achieve this feat. There are a few languages that implement coroutines (in Go, they are called Goroutines, but they are the same), and Atomic FIFO queues, but none of them are as widely used or well supported as Go. This is unfortunate for the rest of the software development world, because they have a lot to catch up on. This model of programming has been in existence since the early 80s but it wasn't until the late 80s there was even parallel processors. Now, they are everywhere, and because of the limitations of physics, microchips can only give us faster processing in parallel, as individual threads of processing have not gotten faster in almost 20 years.
 
 Last part of the above code is these "Sequenced" structures. These are how we will keep a track of our results order as relates to the original random data we generated to run this test.
+
+[->contents](#kitchensink)
 
 ### Using Hash Chains to generate bulk random data fast
 
@@ -3248,6 +3273,8 @@ The last step is to trim off the extra bytes above the prescribed length for eac
 
 But the main point is, it's either right, or it's not. This is important especially for such things as addresses in a cryptocurrency transfer request. If we screwed up the transcription somehow, we at least didn't send it to the abyss, which is where most random values refer to, IE, nowhere at all.
 
+[->contents](#kitchensink)
+
 ### Starting up the gRPC client and server
 
 This is much the same chunk of code used in the other two gRPC tests:
@@ -3268,6 +3295,8 @@ This is much the same chunk of code used in the other two gRPC tests:
 	}
 	enc, dec, stopCli := cli.Start()
 ```
+
+[->contents](#kitchensink)
 
 ### Encoding the random length chunks
 
@@ -3346,6 +3375,8 @@ The `qCount` atomic counter, however, allows us to read this value, but the `Wai
 
 At the end of this for loop, our `stringChan` will have all 64 of its buffers filled, and if any further items were sent to the channel, the sender would be waiting for the channel to be received from. So we are using the buffer as an atomic buffer, as we can load it up with our test item results without any race conditions, with each item having its sequence number stored for the next step.
 
+[->contents](#kitchensink)
+
 ### Unloading the channel buffer
 
 So, now we have the channel full of our sequence number bearing results, we can now unload the channel and place the items in their respective sequence position in a correctly ordered slice of result items. Note that we don't need to use the `Sequenced` type for the slice, as the `[]string` slice with `testItems` number of slots, each slot is the sequence number.
@@ -3368,6 +3399,8 @@ So, now we have the channel full of our sequence number bearing results, we can 
 ```
 
 Note that we could have potentially instead further unloaded the channel directly to make requests, but, although we haven't, we may have wanted to check the encoded values were correct as if they had been processed in order, in series, instead of concurrently. Again, this could be an exercise for the reader.
+
+[->contents](#kitchensink)
 
 ### Decoding and collating the encoded data
 
@@ -3415,7 +3448,7 @@ Now, we can repeat the same thing, except where we were encoding the original ge
 			qCount.Dec()
 
 			log.Println(
-				"decode request", i, "response received,",
+				"decode request", i, "response received,",Step 9
 				qCount.Load(), "items in queue",
 			)
 
@@ -3444,6 +3477,8 @@ Now, we can repeat the same thing, except where we were encoding the original ge
 
 Everything here is the same as the previous step, except you can substitute `[]byte` for `string` and `decode` for `encode`.
 
+[->contents](#kitchensink)
+
 ### Checking the encode-decode cycle did not disorder or corrupt our data
 
 ```go
@@ -3467,13 +3502,17 @@ This is fairly straightforward, again we exploit the comparability of strings.
 >
 > Programs that do massive amounts of editing of strings actually work with `[]byte` slices but the syntax is more wordy and does not save us any valuable time here, rather, the opposite, costs us time in writing it, when it's unnecessary for this purpose.
 
+[->contents](#kitchensink)
+
 ### Finally, shutting the concurrency test client and server
 
 ```go
 	log.Println("shutting down client and server")
 	stopCli()
 	stopSrvr()
-
 }
 ```
 
+## [Step 9](steps/step9) - Creating a Server application and a CLI client
+
+Last thing to illustrate, far less complicated than the concurrency, is turning the service into actual applications.
