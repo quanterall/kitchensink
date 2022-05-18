@@ -10,7 +10,7 @@ Welcome to the kitchen sink... where you will learn everything there is to know 
 	- [Install Go](#install-go)
 	- [Install Protobuf Compiler](#install-protobuf-compiler)
 	- [Install gRPC plugins for Go](#install-grpc-plugins-for-go)
-	- [Initialize your repository](#initialize-your-repository)
+	- [Initialise your repository](#initialise-your-repository)
 - [Step 1 Create the Protobuf specification](#step-1-create-the-protobuf-specification)
 	- [The header section](#the-header-section)
 	- [The service definition](#the-service-definition)
@@ -78,7 +78,7 @@ Welcome to the kitchen sink... where you will learn everything there is to know 
 	- [Unloading the channel buffer](#unloading-the-channel-buffer)
 	- [Decoding and collating the encoded data](#decoding-and-collating-the-encoded-data)
 	- [Checking the encode-decode cycle did not disorder or corrupt our data](#checking-the-encode-decode-cycle-did-not-disorder-or-corrupt-our-data)
-	- [Finally, shutting the concurrency test client and server](#finally-shutting-the-concurrency-test-client-and-server)
+	- [Finally, shutting the concurrency test client and server down](#finally-shutting-the-concurrency-test-client-and-server-down)
 - [Step 9 - Creating a Server application and a CLI client](#step-9---creating-a-server-application-and-a-cli-client)
 
 ## Introduction
@@ -187,7 +187,7 @@ commands will not be accessible.
 
 [->contents](#kitchensink)
 
-### Initialize your repository
+### Initialise your repository
 
 Whether you create the repository directly on your github or other account or
 not, you need to first initialise the go modules, from the root of your new
