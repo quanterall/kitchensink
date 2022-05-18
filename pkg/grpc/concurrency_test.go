@@ -92,11 +92,6 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 		generated[i] = thisHash[:length]
 	}
 
-	// To create a collection that can be sorted easily after creation back into
-	// an ordered slice, we create a buffered channel with enough buffers to
-	// hold all of the items we will feed into it
-	stringChan := make(chan SequencedString, testItems)
-
 	// Set up a server
 	addr, err := net.ResolveTCPAddr("tcp", defaultAddr)
 	if err != nil {
@@ -111,7 +106,11 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 		t.Fatal(err)
 	}
 	enc, dec, stopCli := cli.Start()
-	_ = dec
+
+	// To create a collection that can be sorted easily after creation back into
+	// an ordered slice, we create a buffered channel with enough buffers to
+	// hold all of the items we will feed into it
+	stringChan := make(chan SequencedString, testItems)
 
 	// We will use this to make sure every request completes before we shut down
 	// the client and server
@@ -122,7 +121,6 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 
 	log.Println("encoding received items")
 
-	wg.Add(1)
 	for i := range generated {
 
 		go func(i int) {
@@ -163,7 +161,6 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 
 		}(i)
 	}
-	wg.Done()
 
 	// Wait until all results are back so we can assemble them in order for
 	// checking
@@ -191,7 +188,6 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 
 	log.Println("decoding received items")
 
-	wg.Add(1)
 	for i := range encoded {
 
 		go func(i int) {
@@ -232,7 +228,6 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 
 		}(i)
 	}
-	wg.Done()
 
 	// Wait until all results are back so we can assemble them in order for
 	// checking
@@ -263,7 +258,6 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	}
 
 	log.Println("shutting down client and server")
-	// wg.Wait()
 	stopCli()
 	stopSrvr()
 

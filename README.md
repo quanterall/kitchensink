@@ -3119,3 +3119,361 @@ I hope that especially at this point you are starting to understand why Go is th
 
 This is all very well, so far we have not tested what we spent an awful lot of time doing, which was writing our service so it can handle concurrent requests correctly, and return them when ready whether or not out of order.
 
+### Keeping things in sequence
+
+We have built a processing system that maintains ordering of data through its tubes from the request, through processing, back to the response handed to the client, but in order to make sure it's working, we need to turn on a fire hose and blast data at it fast enough to get everything jumbled in both of our API pipelines, encode and decode.
+
+In order to perform this feat, we will spawn 64 concurrent threads to pump out randomly generated data of widely varying sizes to ensure that we get disordering of results from requests. But then we have the problem of keeping the two together so we can make sure everything goes through the transformation and back again and did not get destroyed in the process.
+
+So, the first thing we need is to define the parameters of our test:
+
+```go
+package grpc
+
+import (
+	"encoding/binary"
+	"github.com/quanterall/kitchensink/pkg/grpc/client"
+	"github.com/quanterall/kitchensink/pkg/grpc/server"
+	"github.com/quanterall/kitchensink/pkg/proto"
+	"go.uber.org/atomic"
+	"lukechampine.com/blake3"
+	"math/rand"
+	"net"
+	"sync"
+	"testing"
+	"time"
+)
+
+const (
+	maxLength = 4096
+	minLength = 8
+	randN     = maxLength - minLength
+	hashLen   = 32
+	testItems = 64
+)
+
+type SequencedString struct {
+	seq int
+	str string
+}
+
+type SequencedBytes struct {
+	seq int
+	byt []byte
+}
+```
+
+Note that we haven't finished showing you the parts of this test yet, so, as you may recognise, not one of those imports is actually required for this little prelude to our test.
+
+What we are setting here are a few parameters to define our test. `maxLength` and `minLength` define the longest and shortest messages we will send out for encoding. `randN` is the actual range of numbers that these boundaries requires, which we will add the `minLength` to after gathering our random numbers to define the lengths of the generated messages.
+
+`hashLen` is the length in bytes of the hash function we will use to generate our strings of pseudo random data. We are not using the `hash.Hash` interface, but instead simply directly calling the `blake3.Sum256` call over and over again on the product of the previous call, so for 256 bits the length is 32 bytes, 256/8.
+
+We will test 64 `testItems`, and as you will see when you run the test, the processing gets so disorderly that some of the first that are processed are the last submitted. You will also notice if you run this test several times that the order of events is never the same. The reason why is that each run will never be using the same memory areas, will be competing with random background processes running on your PC. But the point of this test is to show that in spite of this, thanks to synchronisation primitives and atomic queues, it doesn't matter, we can still get our results to our requests in their correct order.
+
+Only languages that implement Concurrent Sequential Processes (CSP) multi threaded modelling can achieve this feat. There are a few languages that implement coroutines (in Go, they are called Goroutines, but they are the same), and Atomic FIFO queues, but none of them are as widely used or well supported as Go. This is unfortunate for the rest of the software development world, because they have a lot to catch up on. This model of programming has been in existence since the early 80s but it wasn't until the late 80s there was even parallel processors. Now, they are everywhere, and because of the limitations of physics, microchips can only give us faster processing in parallel, as individual threads of processing have not gotten faster in almost 20 years.
+
+Last part of the above code is these "Sequenced" structures. These are how we will keep a track of our results order as relates to the original random data we generated to run this test.
+
+### Using Hash Chains to generate bulk random data fast
+
+Where previously we have been using `math/rand` to do all the heavy lifting to generate our randomness, we want to make it more robust. The `rand.Intn` function that can be used to select a random number between 0 and `n` has a terrible habit of repeating itself, but the unique feature of *cryptographic* hash functions like `blake3` is precisely that they don't repeat, in bazillions of repetitions.
+
+So what we are going to do here is generate a cryptographically strong random data stream by starting with our seed value, hashing that value, and copying the hash to the stream, and then hashing that value to create a new value to copy into the stream. This is called a "hash chain" and is part of the timing system of the Solana blockchain.
+
+We will still use `math/rand`'s function `rand.Intn` to decide the lengths of our chunks of data, alternating between long and short segments that vary, with the even numbers giving lengths between 8 and 32 bytes long, and the odd numbers between 8 and 4096 bytes long. This pattern ensures that we get a breakdown of ordering in the stream as each long packet takes longer to process and thus the shorter item after it can return first.
+
+```go
+	// For reasons of producing wide variance, we will generate the source
+	// material using hash chains
+	seedBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(seedBytes, seed)
+
+	lastHash := make([]byte, hashLen)
+
+	out := blake3.Sum256(seedBytes)
+	copy(lastHash, out[:])
+
+	generated := make([][]byte, testItems)
+
+	// Next, we will use the same fixed seed to define the variable lengths
+	// between 8 and 4096 bytes for 64 items
+	rand.Seed(seed)
+	for i := 0; i < testItems; i++ {
+
+		// Every second slice will be a lot smaller so it will process and
+		// return while its predecessor is still in process
+		var length int
+		if i%2 != 0 {
+
+			length = rand.Intn(hashLen-1) + 1
+		} else {
+
+			length = rand.Intn(randN)
+		}
+
+		// calculate the divisor and modulus of length compared to hash length
+		cycles, cycleMod := length/hashLen, length%hashLen
+		if cycleMod != 0 {
+
+			// to make a hash chain long enough we need to add one and then trim
+			// the result back
+			cycles++
+		}
+
+		thisHash := make([]byte, cycles*hashLen)
+
+		for j := 0; j < cycles; j++ {
+
+			// hash the last hash
+			out = blake3.Sum256(lastHash)
+
+			// copy result back save last hash
+			copy(lastHash, out[:])
+
+			// copy last hash to position in output
+			copy(thisHash[j*hashLen:(j+1)*hashLen], lastHash)
+		}
+
+		// trim result to random generated length value
+		generated[i] = thisHash[:length]
+	}
+```
+
+You can see here again I am using my favourite integer math function, modulus `%` which produces the remainder from long division, the result you get being given by the division operator `/`. This allows me to make sure each chunk of data is exactly as long as the random length we decided on via the `math/rand` `rand.Intn` function. If there is a remainder from the division of the length from our hash chunk size, we know we can get enough to cover the requirement by adding one more hash chunk size of data.
+
+As you can see in each loop in the second inner `for` loop, we hash the last created hash value, update this last hash value, and then copy the new hash to the next position in our random length chunk of data.
+
+The last step is to trim off the extra bytes above the prescribed length for each chunk. It is important, although we have proven that the check/padding function works already in all the previous tests, just to reinforce that this encoder never messes up the check bytes, as the purpose of this encoder is making it possible to write a code down and know for sure that when re-entered into the computer, the bytes it produces are the same, or, by some bad luck or bad handwriting, or omitted character, the transcription was wrong. 
+
+But the main point is, it's either right, or it's not. This is important especially for such things as addresses in a cryptocurrency transfer request. If we screwed up the transcription somehow, we at least didn't send it to the abyss, which is where most random values refer to, IE, nowhere at all.
+
+### Starting up the gRPC client and server
+
+This is much the same chunk of code used in the other two gRPC tests:
+
+```go
+	// Set up a server
+	addr, err := net.ResolveTCPAddr("tcp", defaultAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srvr := server.New(addr, 8)
+	stopSrvr := srvr.Start()
+
+	// Create a client
+	cli, err := client.New(defaultAddr, time.Second*5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc, dec, stopCli := cli.Start()
+```
+
+### Encoding the random length chunks
+
+Now, we will create the first step, which is to concurrently send out all of our generated chunks of binary data.
+
+You will see the first thing we do is create a buffered channel of those "Sequenced" structs, of a buffer count the number of test items.
+
+This enables us to fill this channel with this many items, and by attaching their sequence number, as created in the `for` loop below it, we can then sort them back out later by unloading the channel.
+
+```go
+	// To create a collection that can be sorted easily after creation back into
+	// an ordered slice, we create a buffered channel with enough buffers to
+	// hold all of the items we will feed into it
+	stringChan := make(chan SequencedString, testItems)
+
+	// We will use this to make sure every request completes before we shut down
+	// the client and server
+	var wg sync.WaitGroup
+
+	// We will keep track of ins and outs for log prints
+	var qCount atomic.Uint32
+
+	log.Println("encoding received items")
+
+	for i := range generated {
+
+		go func(i int) {
+
+			log.Println("encode processing item", i)
+
+			// we need to wait until all messages process before collating the
+			// results
+			wg.Add(1)
+			qCount.Inc()
+
+			log.Println(
+				"encode request", i, "sending,",
+				qCount.Load(), "items in queue",
+			)
+
+			// send out the query and wait for the response
+			encRes := <-enc(
+				&proto.EncodeRequest{
+					Data: generated[i],
+				},
+			)
+
+			// push the returned result into our channel buffer with the item
+			// sequence number, so it can be reordered correctly
+			stringChan <- SequencedString{
+				seq: i,
+				str: encRes.GetEncodedString(),
+			}
+
+			wg.Done()
+			qCount.Dec()
+
+			log.Println(
+				"encode request", i, "response received,",
+				qCount.Load(), "items in queue",
+			)
+
+		}(i)
+	}
+
+	// Wait until all results are back so we can assemble them in order for
+	// checking
+	wg.Wait()
+```
+
+There is other important things to note here.
+
+For reasons of illustrating the disorder of this concurrent processing, we are keeping a readable count of each job that has gone out, and decrementing it when it comes back. The `sync.Waitgroup` does the same thing, but you cannot inspect its value. `Add` adds values to the `Waitgroup` counter, and `Done` decrements the counter by 1, and `Wait` blocks until the counter goes back to zero again.
+
+The `qCount` atomic counter, however, allows us to read this value, but the `Waitgroup` has the advantage that as each change operation occurs, it waits on a signal that the counter has gone to zero, meaning that in the thread of execution where `Wait` lives, it is "parked", that is, no processing occurs until this condition is satisfied.
+
+At the end of this for loop, our `stringChan` will have all 64 of its buffers filled, and if any further items were sent to the channel, the sender would be waiting for the channel to be received from. So we are using the buffer as an atomic buffer, as we can load it up with our test item results without any race conditions, with each item having its sequence number stored for the next step.
+
+### Unloading the channel buffer
+
+So, now we have the channel full of our sequence number bearing results, we can now unload the channel and place the items in their respective sequence position in a correctly ordered slice of result items. Note that we don't need to use the `Sequenced` type for the slice, as the `[]string` slice with `testItems` number of slots, each slot is the sequence number.
+
+```go
+	encoded := make([]string, testItems)
+
+	counter := 0
+
+	for item := range stringChan {
+
+		counter++
+		log.Println("collating encode item", item.seq, "items done:", counter)
+		// place items back in the sequence position they were created in
+		encoded[item.seq] = item.str
+		if counter >= testItems {
+			break
+		}
+	}
+```
+
+Note that we could have potentially instead further unloaded the channel directly to make requests, but, although we haven't, we may have wanted to check the encoded values were correct as if they had been processed in order, in series, instead of concurrently. Again, this could be an exercise for the reader.
+
+### Decoding and collating the encoded data
+
+Now, we can repeat the same thing, except where we were encoding the original generated data, we are decoding the encoded data.
+
+```go
+	// To create a collection that can be sorted easily after creation back into
+	// an ordered slice, we create a buffered channel with enough buffers to
+	// hold all of the items we will feed into it
+	bytesChan := make(chan SequencedBytes, testItems)
+
+	log.Println("decoding received items")
+
+	for i := range encoded {
+
+		go func(i int) {
+
+			log.Println("decode processing item", i)
+
+			// we need to wait until all messages process before collating the
+			// results
+			wg.Add(1)
+			qCount.Inc()
+
+			log.Println(
+				"decode request", i, "sending,",
+				qCount.Load(), "items in queue",
+			)
+
+			// send out the query and wait for the response
+			decRes := <-dec(
+				&proto.DecodeRequest{
+					EncodedString: encoded[i],
+				},
+			)
+
+			// push the returned result into our channel buffer with the item
+			// sequence number, so it can be reordered correctly
+			bytesChan <- SequencedBytes{
+				seq: i,
+				byt: decRes.GetData(),
+			}
+
+			wg.Done()
+			qCount.Dec()
+
+			log.Println(
+				"decode request", i, "response received,",
+				qCount.Load(), "items in queue",
+			)
+
+		}(i)
+	}
+
+	// Wait until all results are back so we can assemble them in order for
+	// checking
+	wg.Wait()
+
+	decoded := make([][]byte, testItems)
+
+	counter = 0
+
+	for item := range bytesChan {
+
+		counter++
+		log.Println("collating decode item", item.seq, "items done:", counter)
+		// place items back in the sequence position they were created in
+		decoded[item.seq] = item.byt
+		if counter >= testItems {
+			break
+		}
+	}
+```
+
+Everything here is the same as the previous step, except you can substitute `[]byte` for `string` and `decode` for `encode`.
+
+### Checking the encode-decode cycle did not disorder or corrupt our data
+
+```go
+	// now, to compare the inputs to the processed
+	for i := range generated {
+
+		if string(generated[i]) != string(decoded[i]) {
+
+			t.Fatal("decoded item", i, "not the same as generated")
+		}
+	}
+```
+
+This is fairly straightforward, again we exploit the comparability of strings. 
+
+> To clarify why we do this, the array type - similar to slices but with a number specified inside the type, EG: `[32]byte` - the result type of our hash function `blake3.Sum256()`, cannot be specified without a constant between the square brackets, but, on the other side, the array is mutable, and can be copied and compared.
+>
+> The `string`, on the other hand, is similar to the array, except that its length does not have to be specified, and it can be appended to and mutated similarly to the array, with the difference, in the implementation, and reason for the different usage, that every mutation requires a full copy with the changed or added or removed items. 
+>
+> Thus, the string type is in fact a very very memory consuming type to use, but for short chunks of data, is very convenient, thus we use it here, and the array type could not be used because we did not hard code the lengths of the chunks. Note that we could hard code these lengths, by using a code generator, and thus use array instead of byte slices `[]byte` and `string` for comparison, but this isn't necessary for a test, and not necessary for small pieces of data like this.
+>
+> Programs that do massive amounts of editing of strings actually work with `[]byte` slices but the syntax is more wordy and does not save us any valuable time here, rather, the opposite, costs us time in writing it, when it's unnecessary for this purpose.
+
+### Finally, shutting the concurrency test client and server
+
+```go
+	log.Println("shutting down client and server")
+	stopCli()
+	stopSrvr()
+
+}
+```
+
