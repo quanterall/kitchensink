@@ -253,6 +253,15 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 		}
 	}
 
+	// now, to compare the inputs to the processed
+	for i := range generated {
+
+		if string(generated[i]) != string(decoded[i]) {
+
+			t.Fatal("decoded item", i, "not the same as generated")
+		}
+	}
+
 	log.Println("shutting down client and server")
 	// wg.Wait()
 	stopCli()
