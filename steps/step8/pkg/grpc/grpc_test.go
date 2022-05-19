@@ -25,7 +25,10 @@ func TestGRPC(t *testing.T) {
 		t.Log(err)
 		t.FailNow()
 	}
-	enc, dec, stopClient := cli.Start()
+	enc, dec, stopCli, err := cli.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	test1, err := hex.DecodeString("deadbeefcafe0080085000deadbeefcafe")
 	if err != nil {
@@ -47,7 +50,7 @@ func TestGRPC(t *testing.T) {
 		},
 	)
 	t.Log("done")
-	stopClient()
+	stopCli()
 	stopServer()
 	if string(test1) != string(decRes.GetData()) {
 		t.Fatalf(

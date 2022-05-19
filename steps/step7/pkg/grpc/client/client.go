@@ -66,7 +66,7 @@ func (b *b32c) Start() (
 	}
 
 	go func() {
-		log.Println("starting decoder")
+
 		err := b.Decode(decode)
 		if err != nil {
 			log.Print(err)
@@ -74,7 +74,7 @@ func (b *b32c) Start() (
 	}()
 
 	go func() {
-		log.Println("starting encoder")
+
 		err := b.Encode(encode)
 		if err != nil {
 			log.Print(err)

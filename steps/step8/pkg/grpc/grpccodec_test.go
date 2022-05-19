@@ -32,7 +32,10 @@ func TestGRPCCodec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	enc, dec, stopCli := cli.Start()
+	enc, dec, stopCli, err := cli.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Generate 10 pseudorandom 64 bit values. We do this here rather than
 	// pre-generating this separately as ultimately it is the same thing, the

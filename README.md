@@ -81,9 +81,12 @@ Welcome to the kitchen sink... where you will learn everything there is to know 
 	- [Finally, shutting the concurrency test client and server down](#finally-shutting-the-concurrency-test-client-and-server-down)
 - [Step 9 - Creating a Server application and a CLI client](#step-9---creating-a-server-application-and-a-cli-client)
 	- [`cmd` folders for executables](#cmd-folders-for-executables)
+	- [Creating the server application](#creating-the-server-application)
 	- [Log, Log, Glorious Log](#log-log-glorious-log)
 	- [Flags for CLI](#flags-for-cli)
 	- [The main function](#the-main-function)
+	- [Clean Shutdown Handler](#clean-shutdown-handler)
+	- [Creating a simple command line client](#creating-a-simple-command-line-client)
 
 ## Introduction
 
@@ -2785,8 +2788,11 @@ func TestGRPC(t *testing.T) {
 		t.Log(err)
 		t.FailNow()
 	}
-	enc, dec, stopClient := cli.Start()
-
+	enc, dec, stopCli, err := cli.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	
 	test1, err := hex.DecodeString("deadbeefcafe0080085000deadbeefcafe")
 	if err != nil {
 		t.Fatal(err)
@@ -2807,7 +2813,7 @@ func TestGRPC(t *testing.T) {
 		},
 	)
 	t.Log("done")
-	stopClient()
+	stopCli()
 	stopServer()
 	if string(test1) != string(decRes.GetData()) {
 		t.Fatalf(
@@ -2879,8 +2885,11 @@ func TestGRPCCodec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	enc, dec, stopCli := cli.Start()
-
+	enc, dec, stopCli, err := cli.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	
 	// Generate 10 pseudorandom 64 bit values. We do this here rather than
 	// pre-generating this separately as ultimately it is the same thing, the
 	// same seed produces the same series of pseudorandom values, and the hashes
@@ -3297,7 +3306,11 @@ This is much the same chunk of code used in the other two gRPC tests:
 	if err != nil {
 		t.Fatal(err)
 	}
-	enc, dec, stopCli := cli.Start()
+
+    enc, dec, stopCli, err := cli.Start()
+        if err != nil {
+        t.Fatal(err)
+    }
 ```
 
 [->contents](#kitchensink)
@@ -3767,9 +3780,11 @@ As you can see, the `interrupt` library also prints logs, since the first author
 
 Next, and the last and final piece of code to put into the kitchensink project is a simple program that accepts hexadecimal encoded binary data and converts it to our encoding, or, decodes data in the encoded form, back into hexadecimal.
 
-As usual, put the `log.go` in to a new folder `cmd/basedcli/` which will be identical to the one in `basedd`
+As usual, put the `log.go` in to a new folder `cmd/basedcli/` which will be identical to the one in `basedd`
 
 > Just a brief note about the log printing, it sends to `stderr` (`os.Stderr`) which only prints to the terminal and won't print to where you pipe or redirect (`>`, `>>` or `|`) the outputs. Also, normally you would disable logging on a client like this, but when in development, you want to have logging to begin with, and easy to turn on. I will not cover the subject of turning it off or redirecting it, you can find that out easy enough searching for information about redirecting `stderr` and `stdout` in terminals by searching on your favourite web search engine.
+
+#### Usage of the `flag` library
 
 So, first, here is the initial setup for parsing the inputs in `cmd/basedcli/basedcli.go`:
 
@@ -3785,26 +3800,91 @@ import (
 const defaultAddr = "localhost:50051"
 
 var (
-	serverAddr = flag.String("a", defaultAddr,
+	serverAddr = flag.String(
+        "a", defaultAddr,
 		"The server address for basedcli to connect to",
 	)
-	encode = flag.String("e", "", "hex string to convert to based32 encoding")
-	decode = flag.String("d", "",
+	encode = flag.String(
+        "e", "", 
+        "hex string to convert to based32 encoding",
+    )
+	decode = flag.String(
+        "d", "",
 		"based32 encoded string to convert back to hex",
 	)
 )
 
 func main() {
-	_, _ = fmt.Fprintln(os.Stderr,
-		"basedcli - commandline client for based32 codec service",
-	)
+
 	flag.Parse()
-	if *serverAddr == defaultAddr {
-		_, _ = fmt.Fprintln(os.Stderr,
-			"run with argument -h to print command line options",
-		)
-	}
 
 }
 ```
+
+We want to show a little of the ways to use the `flag` library, so we make a separate option for encoding versus decoding. However, it is not intended that both be done at once so we don't assume a priority, or process both requests in one call, we flag an error.
+
+#### Command line error code returns
+
+Command line programs return a numeric value. Zero means no error, and anything other than zero is an error. So our program will also return a 1 for any error that occurs.
+
+So, we also will illustrate turning conditions into variables rather than using conditions directly inside a conditional construct, in this case an `if` block:
+
+```go
+    // if both or neither query fields have values it is an error
+    noQuery := *encode == "" && *decode == ""
+    bothQuery := *encode != "" && *decode != ""
+    if noQuery || bothQuery {
+
+        _, _ = fmt.Fprintln(
+            os.Stderr,
+            "basedcli - commandline client for based32 codec service",
+        )
+
+        if noQuery {
+
+            _, _ = fmt.Fprintln(
+                os.Stderr, "No query provided, printing help information",
+            )
+
+        } else {
+
+            _, _ = fmt.Fprintln(
+                os.Stderr, "Only one of -e or -d may be used",
+            )
+
+        }
+
+        flag.PrintDefaults()
+        os.Exit(1)
+
+    }
+```
+
+Both neither and both options set for encode and decode are errors, but we want to report to the user which of the errors occurred.
+
+Note that we are not using `fmt.Println` but `fmt.Fprintln` so that we can specify output to go to the standard terminal error output. This output is not captured by unqualified pipe and redirection operators (`|`, `>` and `>>`) - though most shells can be asked to redirect these, by default `stderr` prints to the screen, but not to files or pipes, and is for the human and not generally used by the machine, which only sees the return value in the error. 
+
+The error value is stored in the variable `$?`, from the last program execution. The purpose of respecting this convention is that a shell script can then use the `&&` operator, which halts execution if the command before it returned an error.
+
+So, in the case of error, we print the boilerplate program name and information, and then an error text, print the usage information with `flag.PrintDefaults()` and exit with an error code, which will leave a 1 in the `$?` shell variable.
+
+#### Starting up the client to run the query
+
+```go
+    // Create a new client
+    cli, err := client.New(defaultAddr, 5*time.Second)
+    if err != nil {
+        _, _ = fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+
+    // Start the client
+    enc, dec, stopClient, err := cli.Start()
+    if err != nil {
+        _, _ = fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+```
+
+This is straight out of the tests, except we use `os.Exit(1)` to return an error to the terminal and halt execution instead of stopping the test with Fail.
 

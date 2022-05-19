@@ -6,6 +6,7 @@ import (
 	"github.com/quanterall/kitchensink/pkg/grpc/server"
 	"github.com/quanterall/kitchensink/pkg/proto"
 	"go.uber.org/atomic"
+	"log"
 	"lukechampine.com/blake3"
 	"math/rand"
 	"net"
@@ -105,7 +106,10 @@ func TestGRPCCodecConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	enc, dec, stopCli := cli.Start()
+	enc, dec, stopCli, err := cli.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// To create a collection that can be sorted easily after creation back into
 	// an ordered slice, we create a buffered channel with enough buffers to

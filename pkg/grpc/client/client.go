@@ -37,6 +37,7 @@ func (b *b32c) Start() (
 	enc func(*proto.EncodeRequest) chan *proto.EncodeResponse,
 	dec func(*proto.DecodeRequest) chan *proto.DecodeResponse,
 	stop func(),
+	err error,
 ) {
 
 	// Dial the configured server address
@@ -45,7 +46,7 @@ func (b *b32c) Start() (
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		log.Fatalf("fail to dial: %v", err)
+		return
 	}
 
 	cli := proto.NewTranscriberClient(clientConn)
@@ -66,7 +67,7 @@ func (b *b32c) Start() (
 	}
 
 	go func() {
-		log.Println("starting decoder")
+
 		err := b.Decode(decode)
 		if err != nil {
 			log.Print(err)
@@ -74,7 +75,7 @@ func (b *b32c) Start() (
 	}()
 
 	go func() {
-		log.Println("starting encoder")
+
 		err := b.Encode(encode)
 		if err != nil {
 			log.Print(err)
