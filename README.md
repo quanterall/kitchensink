@@ -3784,7 +3784,7 @@ As usual, put the `log.go` in to a new folder `cmd/basedcli/` which will be iden
 
 > Just a brief note about the log printing, it sends to `stderr` (`os.Stderr`) which only prints to the terminal and won't print to where you pipe or redirect (`>`, `>>` or `|`) the outputs. Also, normally you would disable logging on a client like this, but when in development, you want to have logging to begin with, and easy to turn on. I will not cover the subject of turning it off or redirecting it, you can find that out easy enough searching for information about redirecting `stderr` and `stdout` in terminals by searching on your favourite web search engine.
 
-#### Usage of the `flag` library
+#### Usage of the `flag` library
 
 So, first, here is the initial setup for parsing the inputs in `cmd/basedcli/basedcli.go`:
 
@@ -3888,3 +3888,93 @@ So, in the case of error, we print the boilerplate program name and information,
 
 This is straight out of the tests, except we use `os.Exit(1)` to return an error to the terminal and halt execution instead of stopping the test with Fail.
 
+#### Handling the command line queries
+
+Next, we want to handle the decode *or* encode request:
+
+```go
+	if *encode != "" {
+
+		// for encoding, hex decode errors are the only errors
+		input, err := hex.DecodeString(*encode)
+		if err != nil {
+
+			_, _ = fmt.Fprintln(
+				os.Stderr,
+				"basedcli - commandline client for based32 codec service",
+			)
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		// send encode request
+		encRes := <-enc(
+			&proto.EncodeRequest{
+				Data: input,
+			},
+		)
+
+		fmt.Println(encRes.GetEncodedString())
+
+	} else if *decode != "" {
+
+		decRes := <-dec(
+			&proto.DecodeRequest{
+				EncodedString: *decode,
+			},
+		)
+
+		data := decRes.GetData()
+		if data == nil {
+
+			_, _ = fmt.Fprintln(
+				os.Stderr,
+				"basedcli - commandline client for based32 codec service",
+			)
+			_, _ = fmt.Fprintln(os.Stderr, "Error:", decRes.GetError())
+			os.Exit(1)
+
+		} else {
+
+			fmt.Println(hex.EncodeToString(data))
+		}
+	}
+	
+	stopCli()
+```
+
+Again, pretty much taken straight from the tests.
+
+There is a few things to note here, however. 
+
+First, in the encode, we decode the hexadecimal input inside our application using `hex.DecodeString`. As such, any errors are from here. There basically cannot be any error with the data as it need only purely be a series of bytes.
+
+Second, detecting the error condition for the response we simply read the data. The `GetData()` method returns nil if there was an error, and then we use `GetError()` to return the error. 
+
+It may have slipped my mind to reinforce the idea that in Go, you always think about errors first. Handle errors first, then run the non error case.
+
+There is a saying "fail fast", which is a strong principle you should follow with programming in general, and Go in particular has many features designed towards pushing programmers to write code that fails fast. What this means is, every time there can be a problem, deal with the problems first, and then continue to run the non failure condition.
+
+## Conclusion
+
+It is the end. I hope you have enjoyed working through this tutorial, and please file issues on the issue page of this github page if you found bugs.
+
+If you paid attention to everything throughout this tutorial, you now have become familiar with everything you need to know to write Go programs for most purposes you will be asked to write go programs with.
+
+We did not cover the usage of the popular text based RPC encoding, JSON, but for each different RPC protocol there will be preferred codecs and different setups. We have focused on gRPC and protobuf here because it is necessary to know these things to work with Cosmos SDK applications and most microservices use this RPC and codec. The non-streaming services are simpler to write than the streaming services we have covered here, but you will have no problem understanding how to work with them since you have already worked with the streaming form. The non-streaming service form does not require you to handle any concurrency and will not be the right solution when extreme, concurrent processing is required, which is why we show how to work with streams and concurrency in this tutorial.
+
+The only thing we did not show you was mutexes. These concurrency locks are very popular in C++ and Rust programming, but in general, there are other ways to handle it because of Go's extensive native atomic primitives, notably the channels, which you saw us use a channel buffer in place of a more complicated mutex locked map, or `sync.Map` which uses mutexes in the implementation. But we recommend instead using sequence numbers and buffered channels and atomics to track buffer fill state, as it is more concise and on the implementation level, faster.
+
+Another part of the reason why I did not show mutexes was because in Go, threads are not *process threads*. It's very important to understand that goroutines are not normal threads. They have their own stack, yes, but they do not have their own heap, that is shared. This is why they are so fast to create and you can use thousands of them in a typical program. They are also not *parallel* by default either, and the Go runtime does attempt to parallelise things as much as possible.
+
+I will just warn you that in my experience, from writing a CPU miner for a cryptocurrency, that running multiple single threaded child processes and connecting to them with interprocess communication link (via stdin and stdout) yielded a 20% improvement in this bulk processing task because the kernel correctly runs each process on a different CPU thread and thus you get real parallelism.
+
+Go is not about parallel programming, it is about concurrent programming. The distinction is very important, but subtle.
+
+Concurrent programming means handling random inputs and delays in outputs. It is better for server and interactive systems. It would be great for writing user interfaces too, but Google spends zero resources developing Go as a general purpose application programming language and focuses on its use as server and programmer tooling, like Docker, Kubernetes, gRPC/Protobuf, and so forth. 
+
+There is a very good GUI system available for Go, called Gio you can discover for yourself at [https://gioui.org](https://gioui.org) but it is not well funded, despite being able to target Mac, Windows, Linux, iOS and Android platforms with one codebase.
+
+We also covered a little of the basics of how Go programs interact with the operating system. Note that if you are forced to deal with the Windows operating system, there is numerous gotchas relating to process signals. Windows is special, being ultimately derived from the pre-Unix, pre-multitasking operating system CPM via QDOS which was repackaged as MS-DOS by Microsoft to satisfy their contract with IBM back in the day. I hope you never have to deal with windows programming, but I will say, it is possible.
+
+#### Happy Go Programming!

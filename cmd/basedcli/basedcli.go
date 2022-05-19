@@ -76,12 +76,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err != nil {
-
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
 	if *encode != "" {
 
 		// for encoding, hex decode errors are the only errors
@@ -128,5 +122,6 @@ func main() {
 			fmt.Println(hex.EncodeToString(data))
 		}
 	}
+
 	stopCli()
 }
