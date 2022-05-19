@@ -3,7 +3,7 @@ module github.com/quanterall/kitchensink/steps/step6
 go 1.18
 
 require (
-	github.com/quanterall/kitchensink v0.0.0-20220516094459-12e10f61d2a6
+	github.com/quanterall/kitchensink v0.0.0-20220518131616-f3a6a35f08e8
 	go.uber.org/atomic v1.9.0
 	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
